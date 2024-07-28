@@ -9,7 +9,7 @@ A learning-based tool to predict antimicrobial resistance and identify AMR-relat
 `conda env create -f strainamr.yaml`<BR/>
 `conda activate strainamr`<BR/>
 `sh download_ps.sh`<BR/>
-`sh install_rebuild_ps.py`<BR/>
+`python install_rebuild_ps.py`<BR/>
 
 Test your installation：<BR/>
 
