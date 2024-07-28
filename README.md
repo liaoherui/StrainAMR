@@ -5,6 +5,8 @@ A learning-based tool to predict antimicrobial resistance and identify AMR-relat
 
 `git clone https://github.com/liaoherui/StrainAMR.git`<BR/>
 `cd StrainAMR`<BR/>
+`unzip Test_genomes.zip`<BR/>
+`unzip localDB.zip`<BR/>
 
 `conda env create -f strainamr.yaml`<BR/>
 `conda activate strainamr`<BR/>
