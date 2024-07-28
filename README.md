@@ -18,7 +18,7 @@ Open the bashrc file:
 
 Add this line:
 `export PATH=$PATH:<yout installation directory>/PhenotypeSeeker/.PSenv/bin`<BR/>
-For example, if my installation dir is `/home/ray/StrainAMR`, then it should be
+For example, if my installation dir is `/home/ray/StrainAMR`, then it should be<BR/>
 `export PATH=$PATH:/home/ray/StrainAMR/PhenotypeSeeker/.PSenv/bin`<BR/>
 
 Finally:
