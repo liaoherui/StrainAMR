@@ -30,3 +30,7 @@ Test your installation：<BR/>
 `python StrainAMR_build_train.py -h`<BR/>
 `python StrainAMR_build_test.py -h`<BR/>
 `python StrainAMR_model.py -h`<BR/>
+
+Test running with the demo data:<BR/>
+
+`sh test_run.sh`
