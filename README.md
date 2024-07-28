@@ -11,7 +11,7 @@ A learning-based tool to predict antimicrobial resistance and identify AMR-relat
 `sh download_ps.sh`<BR/>
 `python install_rebuild_ps.py`<BR/>
 
-Add environment variable for running phenotypeseeker:
+(Important) Add environment variable for running phenotypeseeker:
 
 Open the bashrc file:
 `vi ~/.bashrc`<BR/>
