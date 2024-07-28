@@ -10,3 +10,8 @@ A learning-based tool to predict antimicrobial resistance and identify AMR-relat
 `conda activate strainamr`<BR/>
 `sh download_ps.sh`<BR/>
 `sh install_rebuild_ps.py`<BR/>
+
+Test your installation：
+`python StrainAMR_build_train.py -h`<BR/>
+`python StrainAMR_build_test.py -h`<BR/>
+`python StrainAMR_model.py -h`<BR/>
