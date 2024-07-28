@@ -41,7 +41,7 @@ def run_prodigal_rgi(dr,odir):
         else:
             if os.path.getsize(pdir+'/'+s+'.faa') == 0:
                 os.system('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa'+' -a '+pdir+'/'+s+'.faa')
-        os.system('rgi main --input_sequence '+gdir+'/'+s+'.fa --output_file '+rgi+'/'+s+' --local --clean  -n 32')
+        os.system('rgi main --input_sequence '+gdir+'/'+s+'.fa --output_file '+rgi+'/'+s+' --local --clean  -n 10')
         #exit()
     return gdir,pdir
 
