@@ -1,0 +1,26 @@
+ID	Drug_Name	Drug_Class
+1	clindamycin	lincosamide antibiotic
+2	azithromycin	macrolide antibiotic
+3	erythromycin	macrolide antibiotic
+4	ciprofloxacin	fluoroquinolone antibiotic
+5	levofloxacin	fluoroquinolone antibiotic
+6	cephalexin	cephalosporin
+7	cefdinir	cephalosporin
+8	ceftazidime-avibactam	cephalosporin
+9	penicillin	penam
+10	amoxicillin	penam
+11	amoxicillin-clavulanic	penam
+12	tetracycline	tetracycline antibiotic
+13	doxycycline	tetracycline antibiotic
+14	trimethoprim-sulfamethoxazole	diaminopyrimidine antibiotic;sulfonamide antibiotic
+15	nitrofurantoin	nitrofuran antibiotic
+16	rifampicin	rifamycin antibiotic
+17	isoniazid	isoniazid-like antibiotic
+18	ofloxacin	fluoroquinolone antibiotic
+19	oxacillin	penam
+20	clarithromycin	macrolide antibiotic
+21	moxifloxacin	fluoroquinolone antibiotic
+22	ethionamide	thioamide antibiotic
+23	imipenem	carbapenem
+24	amikacin	aminoglycoside antibiotic
+25	ampicillin	penam
