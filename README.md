@@ -1,5 +1,5 @@
 # StrainAMR
-A learning-based tool to predict antimicrobial resistance and identify AMR-related genomic features from bacterial strain genomes
+A learning-based tool to predict antimicrobial resistance and identify multimodal AMR-related genomic features from bacterial strain genomes
 
 ## Install (Linux or ubuntu only)
 
