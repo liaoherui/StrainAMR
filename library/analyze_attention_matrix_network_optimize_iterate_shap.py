@@ -139,6 +139,9 @@ def check_top10_attn(odir,dg,pre,shap_top,dc,dcs,dcn):
     c4=1
     c5=1
     for s in shap_top:
+        if s not in dg:
+            print(s,' not in the attention matrix, skip!',flush=True)
+            continue
         td=dg[s]
         tem={}
         tem2={}
@@ -236,6 +239,11 @@ def plot_graph(in_arr,g,outg,labels):
 def scan_graphs(out,g,pre):
     if True:
         o=open(out+'/graph_'+pre+'_stat.txt','w+')
+        if nx.is_empty(g):
+            o.write('This is a null graph!\n')
+            print(out+'/graph_'+pre+'_stat.txt contains null graph!',flush=True)
+            return
+        
         o.write('Nodes_count\t'+str(g.number_of_nodes())+'\n') 
         o.write('Edges_count\t'+str(g.number_of_edges())+'\n')
         o.write('--------------\n')
