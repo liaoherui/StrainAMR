@@ -31,7 +31,8 @@ Test your installation：<BR/>
 
 `python StrainAMR_build_train.py -h`<BR/>
 `python StrainAMR_build_test.py -h`<BR/>
-`python StrainAMR_model.py -h`<BR/>
+`python StrainAMR_model_train.py -h`<BR/>
+`python StrainAMR_model_pred.py -h`<BR/>
 
 Test the tool with the demo data:<BR/>
 
