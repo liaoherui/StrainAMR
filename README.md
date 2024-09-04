@@ -37,3 +37,8 @@ Test your installation：<BR/>
 Test the tool with the demo data:<BR/>
 
 `sh test_run.sh`
+
+ Rerun the 3-fold cross validation experiment:<BR/>
+
+ `sh batch_train_3fold_exp.sh`
+
