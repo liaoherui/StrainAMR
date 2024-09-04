@@ -19,6 +19,10 @@ batch_size=20
 epoch_num=100
 dropout=0.5
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f'You are using {device}!',flush=True)
+#device = torch.device("cpu")
+print(torch.cuda.device_count())
+#exit()
 
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
@@ -168,12 +172,21 @@ def return_batch(train_sentence1,train_sentence2,train_sentence3,label,flag):
     X_train3=torch.from_numpy(train_sentence3).to(device)
     y_train=torch.from_numpy(label).to(device)
     train_dataset=subDataset(X_train1,X_train2,X_train3, y_train)
-    training_loader = Data.DataLoader(
-        dataset=train_dataset,
-        batch_size=batch_size,
-        shuffle=flag,
-        num_workers=0,
-    )
+    if torch.cuda.device_count()>1:
+        training_loader = Data.DataLoader(
+            dataset=train_dataset,
+            batch_size=batch_size,
+            shuffle=flag,
+            num_workers=0,
+            drop_last = True,
+        )
+    else:
+        training_loader = Data.DataLoader(
+            dataset=train_dataset,
+            batch_size=batch_size,
+            shuffle=flag,
+            num_workers=0,
+        )
     return training_loader
         
     
@@ -336,6 +349,10 @@ def main():
     at2_test=[]
     at3_test=[]
     valid_losses = []
+    if torch.cuda.device_count() > 1:
+        print(f" Use {torch.cuda.device_count()} GPUs!\n",flush=True)
+        model=nn.DataParallel(model)
+        model.to(device)
     if sm==0:
         early_stopping = EarlyStopping(patience=20, verbose=True)
     for epoch in range(epoch_num):
@@ -378,12 +395,12 @@ def main():
             #accelerator.backward(loss)
             optimizer.step()
             running_loss += loss.item()
-            if fnum==1:
+            if fnum==1 and atw==1:
                 at1_train_tem.append(as1.detach().numpy())
-            if fnum==2:
+            if fnum==2 and atw==1:
                 at1_train_tem.append(as1.detach().numpy())
                 at2_train_tem.append(as2.detach().numpy())
-            if fnum==3:
+            if fnum==3 and atw==1:
                 at1_train_tem.append(as1.detach().numpy())
                 at2_train_tem.append(as2.detach().numpy())
                 at3_train_tem.append(as3.detach().numpy())
@@ -411,7 +428,7 @@ def main():
         fpr, tpr, thresholds = roc_curve(train_label, all_logit)
         roc = auc(fpr, tpr)
         print(f'Training set || epoch no. {epoch} || Train Loss: {running_loss / (len(train_loader)):.4f} || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',flush=True)
-        print(f'Training set || epoch no. {epoch} || Train Loss: {running_loss / (len(train_loader)):.4f} || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',file=ol)
+        print(f'Training set || epoch no. {epoch} || Train Loss: {running_loss / (len(train_loader)):.4f} || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',file=ol,flush=True)
 
         _=model.eval()
         '''
@@ -435,12 +452,12 @@ def main():
                     else:
                         predictions,as1,as2,as3 = model(sentence1,sentence2,sentence3)
                     #if epoch==epoch_num-1:
-                    if fnum==1:
+                    if fnum==1 and atw==1:
                         at1_test_tem.append(as1.detach().numpy())
-                    if fnum==2:
+                    if fnum==2 and atw==1:
                         at1_test_tem.append(as1.detach().numpy())
                         at2_test_tem.append(as2.detach().numpy())
-                    if fnum==3:
+                    if fnum==3 and atw==1:
                         at1_test_tem.append(as1.detach().numpy())
                         at2_test_tem.append(as2.detach().numpy())
                         at3_test_tem.append(as3.detach().numpy())
@@ -465,7 +482,7 @@ def main():
             roc = auc(fpr, tpr)
             valid_loss = np.average(valid_losses)
             print(f'Validation set || epoch no. {epoch} || Validation Loss: {valid_loss:.4f} || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',flush=True)
-            print(f'Validation set || epoch no. {epoch} || Validation Loss: {valid_loss:.4f} || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',file=ol)
+            print(f'Validation set || epoch no. {epoch} || Validation Loss: {valid_loss:.4f} || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',file=ol,flush=True)
             if sm==0:
                 es_out=early_stopping(valid_loss, model, odir,ol)
                 if early_stopping.early_stop:
@@ -476,22 +493,22 @@ def main():
         if sm==0:
             if es_out:
                 #max_f1=fscore
-                if fnum==1:
+                if fnum==1 and atw==1:
                     at1_train = at1_train_tem
-                if fnum==2:
+                if fnum==2 and atw==1:
                     at1_train = at1_train_tem
                     at2_train = at2_train_tem
-                if fnum==3:
+                if fnum==3 and atw==1:
                     at1_train=at1_train_tem
                     at2_train=at2_train_tem
                     at3_train=at3_train_tem
                 if tm==0:
-                    if fnum==1:
+                    if fnum==1 and atw==1:
                         at1_test = at1_test_tem
-                    if fnum==2:
+                    if fnum==2 and atw==1:
                         at1_test = at1_test_tem
                         at2_test = at2_test_tem
-                    if fnum==3:
+                    if fnum==3 and atw==1:
                         at1_test=at1_test_tem
                         at2_test=at2_test_tem
                         at3_test=at3_test_tem
@@ -504,30 +521,29 @@ def main():
         if fscore>max_f1:
             max_f1=fscore
             torch.save(model.state_dict(), odir+"/best_model_f1_score.pt")
-            if tm==0:
-                o3 = open(odir + '/output_sample_prob_val_best_f1.txt', 'w+')
-                o3.write('Sample_Id\tLabel\tPred\tProb\n')
-                c=0
-                for e in test_label:
-                    o3.write(sid_val[c]+'\t'+str(e)+'\t'+str(all_pred[c])+'\t'+str(all_logit[c])+'\n')
-                    c+=1
+            o3 = open(odir + '/output_sample_prob_val_best_f1.txt', 'w+')
+            o3.write('Sample_Id\tLabel\tPred\tProb\n')
+            c=0
+            for e in test_label:
+                o3.write(sid_val[c]+'\t'+str(e)+'\t'+str(all_pred[c])+'\t'+str(all_logit[c])+'\n')
+                c+=1
             if sm==1:
-                if fnum==1:
+                if fnum==1 and atw==1:
                     at1_train = at1_train_tem
-                if fnum==2:
+                if fnum==2 and atw==1:
                     at1_train = at1_train_tem
                     at2_train = at2_train_tem
-                if fnum==3:
+                if fnum==3 and atw==1:
                     at1_train=at1_train_tem
                     at2_train=at2_train_tem
                     at3_train=at3_train_tem
                 if tm==0:
-                    if fnum==1:
+                    if fnum==1 and atw==1:
                         at1_test = at1_test_tem
-                    if fnum==2:
+                    if fnum==2 and atw==1:
                         at1_test = at1_test_tem
                         at2_test = at2_test_tem
-                    if fnum==3:
+                    if fnum==3 and atw==1:
                         at1_test=at1_test_tem
                         at2_test=at2_test_tem
                         at3_test=at3_test_tem
@@ -560,16 +576,17 @@ def main():
         print('Detect \'-a 1\'! -> Skip the attention weight calculation step...')
         exit()
     #cic_train = y_train == all_pred_train
-    train_at1 = np.vstack(at1_train)[: len(x_train1)]
-    train_at2 = np.vstack(at2_train)[: len(x_train1)]
-    train_at3 = np.vstack(at3_train)[: len(x_train1)]
+    if atw==1:
+        train_at1 = np.vstack(at1_train)[: len(x_train1)]
+        train_at2 = np.vstack(at2_train)[: len(x_train1)]
+        train_at3 = np.vstack(at3_train)[: len(x_train1)]
 
     #train_at1=train_at1[cic_train]
     #train_at2=train_at2[cic_train]
     #train_at3=train_at3[cic_train]
 
     #cic_test = y_val == all_pred
-    if tm==0:
+    if tm==0 and atw==1:
         test_at1 = np.vstack(at1_test)[: len(x_val1)]
         test_at2 = np.vstack(at2_test)[: len(x_val1)]
         test_at3 = np.vstack(at3_test)[: len(x_val1)]
