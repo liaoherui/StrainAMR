@@ -209,7 +209,7 @@ def parsef(ins):
 
 def main():
     usage = "StrainAMR_model_predict - Takes output folder of StrainAMR_build_train and StrainAMR_build_test as input, and finishes prediction of test genomes."
-    parser = argparse.ArgumentParser(prog="StrainAMR_fold_run.py", description=usage)
+    parser = argparse.ArgumentParser(prog="StrainAMR_model_predict.py", description=usage)
     parser.add_argument('-i', '--input_file', dest='input_file', type=str,
                         help="The directory of the input files (output folder of StrainAMR_build_train and StrainAMR_build_test).")
     parser.add_argument('-f', '--feature_used', dest='fused', type=str,

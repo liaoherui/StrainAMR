@@ -7,6 +7,7 @@ A learning-based tool to predict antimicrobial resistance and identify multimoda
 `cd StrainAMR`<BR/>
 `unzip Test_genomes.zip`<BR/>
 `unzip localDB.zip`<BR/>
+`unzip Benchmark_features.zip`<BR/>
 
 `conda env create -f strainamr.yaml`<BR/>
 `conda activate strainamr`<BR/>
