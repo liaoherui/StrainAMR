@@ -85,10 +85,10 @@ class subDataset(Dataset.Dataset):
     def __len__(self):
         return len(self.label)
     def __getitem__(self,index):
-        feature1=torch.Tensor(self.feature1[index])
-        feature2=torch.Tensor(self.feature2[index])
-        feature3=torch.Tensor(self.feature3[index])
-        label=torch.Tensor(self.label[index])
+        feature1=torch.Tensor(self.feature1[index]).to(device)
+        feature2=torch.Tensor(self.feature2[index]).to(device)
+        feature3=torch.Tensor(self.feature3[index]).to(device)
+        label=torch.Tensor(self.label[index]).to(device)
         return feature1,feature2,feature3,label
 
 def setup_seed(seed):
@@ -209,7 +209,7 @@ def parsef(ins):
 
 def main():
     usage = "StrainAMR_model_predict - Takes output folder of StrainAMR_build_train and StrainAMR_build_test as input, and finishes prediction of test genomes."
-    parser = argparse.ArgumentParser(prog="StrainAMR_model_predict.py", description=usage)
+    parser = argparse.ArgumentParser(prog="StrainAMR_fold_run.py", description=usage)
     parser.add_argument('-i', '--input_file', dest='input_file', type=str,
                         help="The directory of the input files (output folder of StrainAMR_build_train and StrainAMR_build_test).")
     parser.add_argument('-f', '--feature_used', dest='fused', type=str,
@@ -345,7 +345,7 @@ def main():
         at1_test_tem=[]
         at2_test_tem=[]
         at3_test_tem=[]
-        #exit()
+        model.to(device)
         all_pred_train=[]
         all_pred=[]
         test_label=[]

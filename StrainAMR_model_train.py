@@ -91,10 +91,10 @@ class subDataset(Dataset.Dataset):
     def __len__(self):
         return len(self.label)
     def __getitem__(self,index):
-        feature1=torch.Tensor(self.feature1[index])
-        feature2=torch.Tensor(self.feature2[index])
-        feature3=torch.Tensor(self.feature3[index])
-        label=torch.Tensor(self.label[index])
+        feature1=torch.Tensor(self.feature1[index]).to(device)
+        feature2=torch.Tensor(self.feature2[index]).to(device)
+        feature3=torch.Tensor(self.feature3[index]).to(device)
+        label=torch.Tensor(self.label[index]).to(device)
         return feature1,feature2,feature3,label
 
 def setup_seed(seed):
@@ -224,7 +224,7 @@ def parsef(ins):
 
 def main():
     usage = "StrainAMR_model_train - Takes output folder of StrainAMR_build_train and StrainAMR_build_test as input, and finishes both train and prediction."
-    parser = argparse.ArgumentParser(prog="StrainAMR_model_train.py", description=usage)
+    parser = argparse.ArgumentParser(prog="StrainAMR_fold_run.py", description=usage)
     parser.add_argument('-i', '--input_file', dest='input_file', type=str,
                         help="The directory of the input files (output folder of StrainAMR_build_train and StrainAMR_build_test).")
     parser.add_argument('-f', '--feature_used', dest='fused', type=str,
@@ -332,7 +332,7 @@ def main():
     max_f1=0
     max_auc=0
     #f1_test=0
-    #check=9
+    model.to(device)
 
     if tm==0:
         x_val1=remove_new_ele(x_train1,x_val1)
@@ -378,7 +378,7 @@ def main():
             sentence1=batch_x1.int()
             sentence2=batch_x2.int()
             sentence3=batch_x3.int()
-            #print(sentence.shape)
+            #print(model.device,sentence1.device,sentence2.device,sentence3.device)
             #exit()
             if fnum == 1:
                 predictions = model(sentence1)
@@ -396,14 +396,14 @@ def main():
             optimizer.step()
             running_loss += loss.item()
             if fnum==1 and atw==1:
-                at1_train_tem.append(as1.detach().numpy())
+                at1_train_tem.append(as1.detach().cpu().numpy())
             if fnum==2 and atw==1:
-                at1_train_tem.append(as1.detach().numpy())
-                at2_train_tem.append(as2.detach().numpy())
+                at1_train_tem.append(as1.detach().cpu().numpy())
+                at2_train_tem.append(as2.detach().cpu().numpy())
             if fnum==3 and atw==1:
-                at1_train_tem.append(as1.detach().numpy())
-                at2_train_tem.append(as2.detach().numpy())
-                at3_train_tem.append(as3.detach().numpy())
+                at1_train_tem.append(as1.detach().cpu().numpy())
+                at2_train_tem.append(as2.detach().cpu().numpy())
+                at3_train_tem.append(as3.detach().cpu().numpy())
             #exit()
             #print(as1.grad.shape,as1.shape)
             #cal_attr(as1,as1.grad)
@@ -453,14 +453,14 @@ def main():
                         predictions,as1,as2,as3 = model(sentence1,sentence2,sentence3)
                     #if epoch==epoch_num-1:
                     if fnum==1 and atw==1:
-                        at1_test_tem.append(as1.detach().numpy())
+                        at1_test_tem.append(as1.detach().cpu().numpy())
                     if fnum==2 and atw==1:
-                        at1_test_tem.append(as1.detach().numpy())
-                        at2_test_tem.append(as2.detach().numpy())
+                        at1_test_tem.append(as1.detach().cpu().numpy())
+                        at2_test_tem.append(as2.detach().cpu().numpy())
                     if fnum==3 and atw==1:
-                        at1_test_tem.append(as1.detach().numpy())
-                        at2_test_tem.append(as2.detach().numpy())
-                        at3_test_tem.append(as3.detach().numpy())
+                        at1_test_tem.append(as1.detach().cpu().numpy())
+                        at2_test_tem.append(as2.detach().cpu().numpy())
+                        at3_test_tem.append(as3.detach().cpu().numpy())
                     #print('before_acc:',predictions,flush=True)
                     #predictions = accelerator.gather(predictions)
                     #print('after_acc:',predictions,flush=True)
