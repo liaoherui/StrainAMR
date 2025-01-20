@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class SelfAttention(nn.Module):
     def __init__(self, embed_size, heads):
@@ -183,7 +184,7 @@ class Transformer(nn.Module):
         forward_expansion=4,
         heads=8,
         dropout=0,
-        device="cpu",
+        device=device,
         max_length_1=512,
         max_length_2=512,
         max_length_3=512,
