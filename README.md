@@ -14,7 +14,8 @@ Build conda env:
 `conda env create -f strainamr.yaml`<BR/>
 `conda activate strainamr`<BR/>
 
-- option2 | download the pre-built conda env, recommmeded!
+- option2 | download the pre-built conda env, recommmeded!<BR/><BR/>
+If you don't have `gdown`, pleae install it first:`pip install gdown`, then <BR/>
 `sh download_env.sh`<BR/>
 `source strainamr/bin/activate`<BR/>
 
