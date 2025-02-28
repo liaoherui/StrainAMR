@@ -1,2 +1,2 @@
-wget https://zenodo.org/records/13117511/files/PS.zip?download=1 -O  PS.zip 
+gdown https://drive.google.com/uc?id=1Ml7HNjohSsp5d_6hxnDfHcvHV6DVclUe
 unzip PS.zip
