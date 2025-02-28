@@ -9,8 +9,16 @@ A learning-based tool to predict antimicrobial resistance and identify diverse A
 `unzip localDB.zip`<BR/>
 `unzip Benchmark_features.zip`<BR/>
 
+Build conda env:
+- option1 | install the conda env via yaml file
 `conda env create -f strainamr.yaml`<BR/>
 `conda activate strainamr`<BR/>
+
+- option2 | download the pre-built conda env, recommmeded!
+`sh download_env.sh`<BR/>
+`source strainamr/bin/activate`<BR/>
+
+Build phenotypeseeker env:<BR/><BR/>
 `sh download_ps.sh`<BR/>
 `python install_rebuild_ps.py`<BR/>
 
