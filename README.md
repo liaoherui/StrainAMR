@@ -13,7 +13,7 @@ If you don't have `gdown`, pleae install it first:<BR/>
 `pip install gdown` 
 
 Build conda env:
-- option1 | install the conda env via yaml file
+- option1 | install the conda env via yaml file <BR/>
 `conda env create -f strainamr.yaml`<BR/>
 `conda activate strainamr`<BR/>
 
