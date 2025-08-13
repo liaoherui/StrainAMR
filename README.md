@@ -78,6 +78,54 @@ Reproduce the three‑fold cross‑validation experiment from the paper:
 sh batch_train_3fold_exp.sh
 ```
 
+## Command-line Parameters
+
+### `StrainAMR_build_train.py`
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `-i`, `--input_file` | required | Directory containing training genome FASTA files |
+| `-l`, `--label_file` | required | Path to phenotype label file |
+| `-d`, `--drug` | required | Drug name to model |
+| `-p`, `--pc` | `0` | Skip protein-cluster token generation when set to `1` |
+| `-s`, `--snv` | `0` | Skip SNV token generation when set to `1` |
+| `-k`, `--kmer` | `0` | Skip k‑mer token generation when set to `1` |
+| `-t`, `--threads` | `1` | Number of parallel worker processes |
+| `-o`, `--outdir` | `StrainAMR_res` | Output directory for generated features |
+
+### `StrainAMR_model_train.py`
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `-i`, `--input_file` | required | Directory produced by build scripts containing token files |
+| `-f`, `--feature_used` | `all` | Comma-separated list of features to use (`kmer`, `snv`, `pc`) |
+| `-t`, `--train_mode` | `0` | Set to `1` if only training data are provided |
+| `-s`, `--save_mode` | `1` | `0` saves model with minimum validation loss |
+| `-a`, `--attention_weight` | `1` | `0` disables saving attention matrices |
+| `-o`, `--outdir` | `StrainAMR_fold_res` | Directory for models, logs and SHAP outputs |
+
+### `StrainAMR_model_predict.py`
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `-i`, `--input_file` | required | Directory of feature files for prediction |
+| `-f`, `--feature_used` | `all` | Feature types to use (`kmer`, `snv`, `pc`) |
+| `-m`, `--model_PATH` | required | Directory containing pre-trained models |
+| `-o`, `--outdir` | `StrainAMR_fold_res` | Directory for prediction logs |
+
+## Output
+
+- **Feature extraction** (`StrainAMR_build_train.py` / `StrainAMR_build_test.py`)
+  - Token files such as `strains_*_sentence_fs.txt`, `strains_*_pc_token_fs.txt`, `strains_*_kmer_token.txt`
+  - Mapping files (`node_token_match.txt`, `kmer_token_id.txt`) linking token IDs to genomic features
+  - SHAP-filtered feature lists (`*_shap_filter.txt`)
+- **Model training** (`StrainAMR_model_train.py`)
+  - Trained models and training log `train_pred_log.txt`
+  - SHAP interaction pair files (`pair_pc.txt`, `pair_snv.txt`, `pair_kmer.txt`)
+  - Optional attention-weight graphs highlighting important feature pairs
+- **Prediction** (`StrainAMR_model_predict.py`)
+  - Prediction log `samples_pred_log.txt` with probabilities and labels
+
 ## New Features
 
 - `StrainAMR_build_train.py` accepts `--threads` to process genomes in parallel
