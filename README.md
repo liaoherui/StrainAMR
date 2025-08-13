@@ -1,56 +1,91 @@
 # StrainAMR
-A learning-based tool to predict antimicrobial resistance and identify diverse AMR-related genomic features (SNVs in ARGs, k-mers, and protein clusters) from bacterial strain genomes
 
-## Install (Linux or ubuntu only)
+StrainAMR is a learning-based framework for predicting antimicrobial resistance (AMR) from bacterial genomes while exposing the genetic features that drive resistance. The toolkit combines k‑mers, single nucleotide variants (SNVs) and protein clusters to build an interpretable classifier and highlight meaningful feature pairs through attention and SHAP interaction scores.
 
-`git clone https://github.com/liaoherui/StrainAMR.git`<BR/>
-`cd StrainAMR`<BR/>
-`unzip Test_genomes.zip`<BR/>
-`unzip localDB.zip`<BR/>
-`unzip Benchmark_features.zip`<BR/>
+## Key Capabilities
 
-If you don't have `gdown`, pleae install it first:<BR/>
-`pip install gdown` 
+- **Accurate AMR prediction** for bacterial strains from raw FASTA assemblies
+- **Biologically interpretable feature discovery** using attention weights and SHAP interaction values
+- **Parallel genome processing** with configurable thread count
+- **Token-to-feature mapping** to translate model inputs back to genes, k‑mers and SNVs
 
-Build conda env:
-- option1 | install the conda env via yaml file <BR/>
-`conda env create -f strainamr.yaml`<BR/>
-`conda activate strainamr`<BR/>
+## Installation (Linux/Ubuntu)
 
-- option2 | download the pre-built conda env, recommmeded!<BR/><BR/>
-`sh download_env.sh`<BR/>
-`source strainamr/bin/activate`<BR/>
+```bash
+git clone https://github.com/liaoherui/StrainAMR.git
+cd StrainAMR
+unzip Test_genomes.zip
+unzip localDB.zip
+unzip Benchmark_features.zip
+```
 
-Build phenotypeseeker env:<BR/><BR/>
-`sh download_ps.sh`<BR/>
-`python install_rebuild_ps.py`<BR/>
+Install the helper utility:
 
-(Important) Add environment variable for running phenotypeseeker:
+```bash
+pip install gdown
+```
 
-Open the bashrc file:
-`vi ~/.bashrc`<BR/>
+### Create the Conda environment
 
-Add this line:
-`export PATH=$PATH:<yout installation directory>/PhenotypeSeeker/.PSenv/bin`<BR/>
-For example, if my installation dir is `/home/ray/StrainAMR`, then it should be<BR/>
-`export PATH=$PATH:/home/ray/StrainAMR/PhenotypeSeeker/.PSenv/bin`<BR/>
+**Option 1 — build from `strainamr.yaml`:**
 
-Finally:
-`source ~/.bashrc`<BR/>
+```bash
+conda env create -f strainamr.yaml
+conda activate strainamr
+```
 
+**Option 2 — use the pre-built environment (recommended):**
 
-Test your installation：<BR/>
+```bash
+sh download_env.sh
+source strainamr/bin/activate
+```
 
-`python StrainAMR_build_train.py -h`<BR/>
-`python StrainAMR_build_test.py -h`<BR/>
-`python StrainAMR_model_train.py -h`<BR/>
-`python StrainAMR_model_pred.py -h`<BR/>
+### PhenotypeSeeker environment
 
-Test the tool with the demo data:<BR/>
+```bash
+sh download_ps.sh
+python install_rebuild_ps.py
+```
 
-`sh test_run.sh`
+Add PhenotypeSeeker to your `PATH` (replace `/path/to/StrainAMR` with your directory):
 
- Rerun the 3-fold cross validation experiment:<BR/>
+```bash
+echo "export PATH=\$PATH:/path/to/StrainAMR/PhenotypeSeeker/.PSenv/bin" >> ~/.bashrc
+source ~/.bashrc
+```
 
- `sh batch_train_3fold_exp.sh`
+## Quick Start
+
+Check the command-line interfaces:
+
+```bash
+python StrainAMR_build_train.py -h
+python StrainAMR_build_test.py -h
+python StrainAMR_model_train.py -h
+python StrainAMR_model_predict.py -h
+```
+
+Run the end‑to‑end demo on the bundled test genomes:
+
+```bash
+sh test_run.sh
+```
+
+Reproduce the three‑fold cross‑validation experiment from the paper:
+
+```bash
+sh batch_train_3fold_exp.sh
+```
+
+## New Features
+
+- `StrainAMR_build_train.py` accepts `--threads` to process genomes in parallel
+- Model training computes SHAP interaction values and maps token IDs back to genomic features for improved interpretability
+
+## Citation
+
+If you use StrainAMR in your research, please cite:
+
+> Liao et al. *StrainAMR: ...* (2024)
 

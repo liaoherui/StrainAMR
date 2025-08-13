@@ -318,3 +318,29 @@ def shap_select(infile,ofile):
     
 #shap_select('../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold2/strains_train_kmer_token.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold2/strains_train_kmer_token_shap_filter.txt')
 #exit()
+
+def shap_interaction_select(infile, pair_out, top_n=100):
+    """Compute SHAP interaction scores and output top interacting token pairs."""
+    X, y, feats, strains = convert2arr(infile)
+    clf = RandomForestClassifier(random_state=0, n_estimators=500)
+    model = clf.fit(X, y)
+    explainer = shap.TreeExplainer(model)
+    interactions = explainer.shap_interaction_values(X)
+    if isinstance(interactions, list):
+        interactions = interactions[1]
+    inter_mean = np.abs(interactions).mean(0)
+    pairs = []
+    for i in range(len(feats)):
+        for j in range(i + 1, len(feats)):
+            pairs.append((feats[i], feats[j], inter_mean[i, j]))
+    pairs.sort(key=lambda x: x[2], reverse=True)
+    with open(pair_out, 'w+') as o:
+        o.write('Token_ID_1\tToken_ID_2\tInteraction\n')
+        c = 0
+        for a, b, v in pairs:
+            if v == 0:
+                continue
+            o.write(f'{a}\t{b}\t{v}\n')
+            c += 1
+            if c >= top_n:
+                break

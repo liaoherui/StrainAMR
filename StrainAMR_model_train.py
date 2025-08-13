@@ -598,48 +598,51 @@ def main():
     #print(train_at2)
     #exit()
     #shap_top=load_shap(indir+'/')
+    pair_pc = indir + '/strains_train_pc_interaction.txt'
+    pair_snv = indir + '/strains_train_snv_interaction.txt'
+    pair_kmer = indir + '/strains_train_kmer_interaction.txt'
+    shap_feature_select_withcls.shap_interaction_select(indir + '/strains_train_pc_token_fs.txt', pair_pc)
+    shap_feature_select_withcls.shap_interaction_select(indir + '/strains_train_sentence_fs.txt', pair_snv)
+    shap_feature_select_withcls.shap_interaction_select(indir + '/strains_train_kmer_token.txt', pair_kmer)
     if fnum==1:
         if fused=='pc':
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at2,
                                                                                            indir + '/strains_train_pc_token_fs.txt',
                                                                                            odir, 'pc_train',
-                                                                                           indir + '/strains_train_pc_token_fs_shap.txt')
+           indir + '/strains_train_pc_token_fs_shap.txt', pair_pc, [indir + '/pc_matches.txt'])
         if fused=='snv':
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at1,
                                                                                            indir + '/strains_train_sentence_fs.txt',
                                                                                            odir, 'graph_train',
-                                                                                           indir + '/strains_train_sentence_fs_shap.txt')
+           indir + '/strains_train_sentence_fs_shap.txt', pair_snv, [indir + '/node_token_match.txt'])
 
         if fused=='kmer':
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at3,
                                                                                            indir + '/strains_train_kmer_token.txt',
                                                                                            odir, 'kmer_train',
-                                                                                           indir + '/strains_train_kmer_token_shap.txt')
+           indir + '/strains_train_kmer_token_shap.txt', pair_kmer, [indir + '/kmer_token_id.txt'])
     if fnum==2:
         if re.search('pc',fused):
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at2,
                                                                                            indir + '/strains_train_pc_token_fs.txt',
                                                                                            odir, 'pc_train',
-                                                                                           indir + '/strains_train_pc_token_fs_shap.txt')
-        if re.search('snv',fused):
+           indir + '/strains_train_pc_token_fs_shap.txt', pair_pc, [indir + '/pc_matches.txt'])
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at1,
                                                                                            indir + '/strains_train_sentence_fs.txt',
                                                                                            odir, 'graph_train',
-                                                                                           indir + '/strains_train_sentence_fs_shap.txt')
-
-        if re.search('kmer',fused):
+           indir + '/strains_train_sentence_fs_shap.txt', pair_snv, [indir + '/node_token_match.txt'])
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at3,
                                                                                            indir + '/strains_train_kmer_token.txt',
                                                                                            odir, 'kmer_train',
-                                                                                           indir + '/strains_train_kmer_token_shap.txt')
+           indir + '/strains_train_kmer_token_shap.txt', pair_kmer, [indir + '/kmer_token_id.txt'])
     elif fnum==3:
-        analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at2,indir+'/strains_train_pc_token_fs.txt',odir,'pc_train',indir+'/strains_train_pc_token_fs_shap.txt')
-        analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at1,indir+'/strains_train_sentence_fs.txt',odir,'graph_train',indir+'/strains_train_sentence_fs_shap.txt')
-        analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at3,indir+'/strains_train_kmer_token.txt',odir,'kmer_train',indir+'/strains_train_kmer_token_shap.txt')
+        analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at2,indir+'/strains_train_pc_token_fs.txt',odir,'pc_train',indir+'/strains_train_pc_token_fs_shap.txt',pair_pc,[indir+'/pc_matches.txt'])
+        analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at1,indir+'/strains_train_sentence_fs.txt',odir,'graph_train',indir+'/strains_train_sentence_fs_shap.txt',pair_snv,[indir+'/node_token_match.txt'])
+        analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at3,indir+'/strains_train_kmer_token.txt',odir,'kmer_train',indir+'/strains_train_kmer_token_shap.txt',pair_kmer,[indir+'/kmer_token_id.txt'])
         if tm==0:
-            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(test_at2,indir+'/strains_test_pc_token_fs.txt',odir,'pc_test',indir+'/strains_train_pc_token_fs_shap.txt')
-            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(test_at1,indir+'/strains_test_sentence_fs.txt',odir,'graph_test',indir+'/strains_train_sentence_fs_shap.txt')
-            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(test_at3,indir+'/strains_test_kmer_token.txt',odir,'kmer_test',indir+'/strains_train_kmer_token_shap.txt')
+            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(test_at2,indir+'/strains_test_pc_token_fs.txt',odir,'pc_test',indir+'/strains_train_pc_token_fs_shap.txt',pair_pc,[indir+'/pc_matches.txt'])
+            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(test_at1,indir+'/strains_test_sentence_fs.txt',odir,'graph_test',indir+'/strains_train_sentence_fs_shap.txt',pair_snv,[indir+'/node_token_match.txt'])
+            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(test_at3,indir+'/strains_test_kmer_token.txt',odir,'kmer_test',indir+'/strains_train_kmer_token_shap.txt',pair_kmer,[indir+'/kmer_token_id.txt'])
 
 
 if __name__=="__main__":

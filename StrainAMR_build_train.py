@@ -20,7 +20,9 @@ def build_dir(idir):
         os.makedirs(idir)
 
 
-def run_prodigal_rgi(dr,odir):
+from concurrent.futures import ProcessPoolExecutor
+
+def run_prodigal_rgi(dr, odir, threads=1):
     gdir=odir+'/Genes'
     ginfo=odir+'/Genes_info'
     pdir=odir+'/Proteins'
@@ -30,24 +32,15 @@ def run_prodigal_rgi(dr,odir):
     build_dir(ginfo)
     build_dir(pdir)
     build_dir(rgi)
-    for s in dr:
-        #print(s)
-        targ=['']
-        #exit()
-        if os.path.exists(rgi+'/'+s+'.txt'):
-            if not os.path.getsize(rgi+'/'+s+'.txt') == 0:continue
-
-        if not os.path.exists(pdir+'/'+s+'.faa'):
-            print('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa'+' -a '+pdir+'/'+s+'.faa')
-            os.system('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa'+' -a '+pdir+'/'+s+'.faa')
-        else:
-            if os.path.getsize(pdir+'/'+s+'.faa') == 0:
-                print('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa'+' -a '+pdir+'/'+s+'.faa')
-                os.system('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa'+' -a '+pdir+'/'+s+'.faa')
-        
-        print('rgi main --input_sequence '+gdir+'/'+s+'.fa --output_file '+rgi+'/'+s+' --local --clean  -n 10')
+    def worker(s):
+        if os.path.exists(rgi+'/'+s+'.txt') and os.path.getsize(rgi+'/'+s+'.txt') != 0:
+            return
+        if not os.path.exists(pdir+'/'+s+'.faa') or os.path.getsize(pdir+'/'+s+'.faa') == 0:
+            os.system('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa -a '+pdir+'/'+s+'.faa')
         os.system('rgi main --input_sequence '+gdir+'/'+s+'.fa --output_file '+rgi+'/'+s+' --local --clean  -n 10')
-        #exit()
+
+    with ProcessPoolExecutor(max_workers=threads) as exe:
+        exe.map(worker, dr)
     return gdir,pdir
 
 def copy_genome(gdir,index,odir,t):
@@ -317,7 +310,7 @@ def scan_length(odir):
     
 
 
-def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile):
+def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1):
     dr={}
     for filename in os.listdir(ingenome):
         pre=re.split('\.',filename)[0]
@@ -327,7 +320,7 @@ def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile):
         dr[pre]=ingenome+'/'+filename
     # Run prodigal and rgi for all input genomes
     print('Run Prodigal and RGI for all input genomes!',flush=True)
-    gdir,pdir=run_prodigal_rgi(dr,odir)
+    gdir,pdir=run_prodigal_rgi(dr,odir,threads)
     gdir=odir+'/Genes'
     pdir=odir+'/Proteins'
     #exit()
@@ -404,7 +397,7 @@ def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile):
             #extract(tem_rv,tem_gv,gv)
 
             graph=work_dir+'/GFA_train_Minimap2'
-            build(gt,graph)
+            build(gt,graph,threads)
 
             #align_res=work_dir+'/Align_val_res'
             #align(gv,graph,align_res)
@@ -455,6 +448,7 @@ def main():
     parser.add_argument('-p','--pc',dest='close_pc',type=int,help="If set to 1, then will skip pc tokens generation step. (Defaut: 0)" ,default=0)
     parser.add_argument('-s','--snv',dest='close_snv',type=int,help="If set to 1, then will skip snv tokens generation step. (Default: 0)",default=0)
     parser.add_argument('-k','--kmer',dest='close_kmer',type=int,help="If set to 1, then will skip k-mer tokens generation step. (Default:0)",default=0)
+    parser.add_argument('-t','--threads',dest='threads',type=int,help="Number of parallel processes. (Default:1)",default=1)
 
     #parser.add_argument('-m','--mfile',dest='map_file',type=str,help="The directory of the mapping file about the drug and its class.")
     parser.add_argument('-o','--outdir',dest='outdir',type=str,help="Output directory of results. (Default: StrainAMR_res)")
@@ -473,7 +467,8 @@ def main():
         out='StrainAMR_res'
 
     #run('/computenodes/node35/team3/herui/AMR_data/Phenotype_Seeker_data/Ref_Genome','cdi_label.txt','Cdi_3fold','azithromycin','drug_to_class.txt')
-    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile)
+    threads=args.threads
+    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile,threads)
 
 if __name__=="__main__":
     sys.exit(main())
