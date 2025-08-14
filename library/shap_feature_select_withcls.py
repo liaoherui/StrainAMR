@@ -7,12 +7,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 import matplotlib.pyplot as plt
 import shap
-import utils
 current_dir = os.path.dirname(os.path.realpath(__file__))
 import sys
 # Add the 'system' directory to the Python path
 #system_path = os.path.join(current_dir, '../../')
 sys.path.append(current_dir)
+import utils
 from shapmat.PCA import customPCA
 from shapmat.clustering import shap_clustering
 from shapmat.clustering_plot import plot_cluster
