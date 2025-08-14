@@ -33,14 +33,17 @@ def run_prodigal_rgi(dr, odir, threads=1):
     build_dir(pdir)
     build_dir(rgi)
     def worker(s):
+        print(f"[Prodigal/RGI] start {s}", flush=True)
         if os.path.exists(rgi+'/'+s+'.txt') and os.path.getsize(rgi+'/'+s+'.txt') != 0:
+            print(f"[Prodigal/RGI] skip {s}", flush=True)
             return
         if not os.path.exists(pdir+'/'+s+'.faa') or os.path.getsize(pdir+'/'+s+'.faa') == 0:
             os.system('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa -a '+pdir+'/'+s+'.faa')
         os.system('rgi main --input_sequence '+gdir+'/'+s+'.fa --output_file '+rgi+'/'+s+' --local --clean  -n 10')
+        print(f"[Prodigal/RGI] done {s}", flush=True)
 
     with ProcessPoolExecutor(max_workers=threads) as exe:
-        exe.map(worker, dr)
+        list(exe.map(worker, dr))
     return gdir,pdir
 
 def copy_genome(gdir,index,odir,t):

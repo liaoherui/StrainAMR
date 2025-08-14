@@ -13,13 +13,14 @@ def align(indir, gdir, odir, threads=1):
     def worker(filename):
         pre=re.split('\.',filename)[0]
         if pre not in d:
-            print(pre,' not in training data, will skip!')
+            print(pre,' not in training data, will skip!', flush=True)
             return
+        print(f"[Align] start {pre}", flush=True)
         os.system('GraphAligner -g '+d[pre]+' -f '+indir+'/'+filename+' -a '+odir+'/'+pre+'.gaf -x vg -t 32 ')
-        print('GraphAligner -g '+d[pre]+' -f '+indir+'/'+filename+' -a '+odir+'/'+pre+'.gaf -x vg -t 32 ')
+        print(f"[Align] done {pre}", flush=True)
 
     with ProcessPoolExecutor(max_workers=threads) as exe:
-        exe.map(worker, os.listdir(indir))
+        list(exe.map(worker, os.listdir(indir)))
 
 
 
