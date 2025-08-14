@@ -460,7 +460,7 @@ def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1):
     #exit()
     scan_length(odir)
     scan_length_fs(odir)
-    scan_length_fs_shap(odir)
+    scan_length_fs_shap(shap_dir)
     os.system('cp '+label+' '+odir+'/train_label.txt')
         #exit()
 
