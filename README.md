@@ -120,9 +120,11 @@ sh batch_train_3fold_exp.sh
   - Mapping files (`node_token_match.txt`, `kmer_token_id.txt`) linking token IDs to genomic features
   - SHAP-filtered feature lists (`*_shap_filter.txt`)
 - **Model training** (`StrainAMR_model_train.py`)
-  - Trained models and training log `train_pred_log.txt`
-  - SHAP interaction pair files (`pair_pc.txt`, `pair_snv.txt`, `pair_kmer.txt`)
-  - Optional attention-weight graphs highlighting important feature pairs
+  - Results are grouped into subfolders within the specified `--outdir`
+    - `models/` – checkpoints such as `best_model_f1_score.pt`
+    - `logs/` – training logs and per-sample probability outputs
+    - `shap/` – SHAP interaction pair files (`strains_train_*_interaction.txt`)
+    - `analysis/` – attention-weight graphs and top-token tables
 - **Prediction** (`StrainAMR_model_predict.py`)
   - Prediction log `samples_pred_log.txt` with probabilities and labels
 

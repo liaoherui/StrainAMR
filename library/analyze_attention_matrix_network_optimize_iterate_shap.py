@@ -559,14 +559,18 @@ def obtain_important_tokens(matrix, sentence_file, odir, pre, shap_top_file, sha
     if not os.path.exists(odir):
         os.makedirs(odir)
     #os.system('rm '+sentence_new_file)
-    filter_low_weight_edges(dgp) 
+    filter_low_weight_edges(dgp)
     filter_low_weight_edges(dgn)
     dpc_sc, dnc_sc = stat_sent_count(sentence_file)
-    check_top10_attn(odir, dgp, pre + '_positive', shap_top, dpc, dpcs, dpc_sc, map_dict)
-    check_top10_attn(odir, dgn, pre + '_negative', shap_top, dnc, dpns, dnc_sc, map_dict)
-    
-    scan_graphs(odir,dgp,pre+'_positive')
-    scan_graphs(odir,dgn,pre+'_negative')
+    token_dir = os.path.join(odir, 'tokens')
+    graph_dir = os.path.join(odir, 'graphs')
+    os.makedirs(token_dir, exist_ok=True)
+    os.makedirs(graph_dir, exist_ok=True)
+    check_top10_attn(token_dir, dgp, pre + '_positive', shap_top, dpc, dpcs, dpc_sc, map_dict)
+    check_top10_attn(token_dir, dgn, pre + '_negative', shap_top, dnc, dpns, dnc_sc, map_dict)
+
+    scan_graphs(graph_dir, dgp, pre+'_positive')
+    scan_graphs(graph_dir, dgn, pre+'_negative')
     #write_out(d1,d2,odir+'/important_tokens_positive_'+pre+'.txt',odir+'/important_token_pairs_positive_'+pre+'.txt')
     #write_out(d3,d4,odir+'/important_tokens_negative_'+pre+'.txt',odir+'/important_token_pairs_negative_'+pre+'.txt')
 
