@@ -2,6 +2,7 @@ import re
 import os
 import sys
 import argparse
+import shutil
 import numpy as np
 from library import Transformer_without_pos_multimodal_add_attn,analyze_attention_matrix_network_optimize_iterate_shap,Transformer_without_pos,Transformer_without_pos_multimodal_add_attn_only2,analyze_attention_matrix_network_optimize_iterate_shap_top
 import torch
@@ -270,6 +271,17 @@ def main():
     shap_dir = os.path.join(odir, 'shap')
     for d in (models_dir, logs_dir, analysis_dir, shap_dir):
         os.makedirs(d, exist_ok=True)
+    # copy SHAP tables generated during feature building into the training output
+    build_shap_dir = os.path.join(indir, 'shap')
+    if os.path.isdir(build_shap_dir):
+        for fname in (
+            'strains_train_sentence_fs_shap_filter.txt',
+            'strains_train_pc_token_fs_shap_filter.txt',
+            'strains_train_kmer_token_shap_filter.txt',
+        ):
+            src = os.path.join(build_shap_dir, fname)
+            if os.path.exists(src):
+                shutil.copy(src, shap_dir)
     ol = open(os.path.join(logs_dir, 'train_pred_log.txt'), 'w')
     #lss1=765
     #lss2=536

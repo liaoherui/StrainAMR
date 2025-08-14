@@ -124,7 +124,7 @@ sh batch_train_3fold_exp.sh
   - Results are grouped into subfolders within the specified `--outdir`
     - `models/` – checkpoints such as `best_model_f1_score.pt`
     - `logs/` – training logs and per-sample probability outputs
-    - `shap/` – SHAP interaction pair files (`strains_train_*_interaction.txt`)
+    - `shap/` – SHAP interaction pair files (`strains_train_*_interaction.txt`) and the SHAP tables copied from feature extraction
     - `analysis/` – attention-weight graphs and top-token tables
 - **Prediction** (`StrainAMR_model_predict.py`)
   - Results saved under the specified `--outdir`
