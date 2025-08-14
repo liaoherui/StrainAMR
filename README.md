@@ -111,7 +111,7 @@ sh batch_train_3fold_exp.sh
 | `-i`, `--input_file` | required | Directory of feature files for prediction |
 | `-f`, `--feature_used` | `all` | Feature types to use (`kmer`, `snv`, `pc`) |
 | `-m`, `--model_PATH` | required | Directory containing pre-trained models |
-| `-o`, `--outdir` | `StrainAMR_fold_res` | Directory for prediction logs |
+| `-o`, `--outdir` | `StrainAMR_fold_res` | Directory for logs, SHAP results and analysis outputs |
 
 ## Output
 
@@ -126,7 +126,10 @@ sh batch_train_3fold_exp.sh
     - `shap/` – SHAP interaction pair files (`strains_train_*_interaction.txt`)
     - `analysis/` – attention-weight graphs and top-token tables
 - **Prediction** (`StrainAMR_model_predict.py`)
-  - Prediction log `samples_pred_log.txt` with probabilities and labels
+  - Results saved under the specified `--outdir`
+    - `logs/` – prediction summaries and per-sample probabilities
+    - `shap/` – SHAP value tables and interaction scores for test genomes
+    - `analysis/` – attention-weight graphs and top-token tables for predictions
 
 ## New Features
 

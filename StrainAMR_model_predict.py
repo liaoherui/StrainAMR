@@ -3,7 +3,14 @@ import os
 import sys
 import argparse
 import numpy as np
-from library import Transformer_without_pos_multimodal_add_attn,analyze_attention_matrix_network_optimize_iterate_shap,Transformer_without_pos,Transformer_without_pos_multimodal_add_attn_only2,analyze_attention_matrix_network_optimize_iterate_shap_top
+from library import (
+    Transformer_without_pos_multimodal_add_attn,
+    analyze_attention_matrix_network_optimize_iterate_shap,
+    Transformer_without_pos,
+    Transformer_without_pos_multimodal_add_attn_only2,
+    analyze_attention_matrix_network_optimize_iterate_shap_top,
+    shap_feature_select_withcls,
+)
 import torch
 from torch.nn import functional as F
 from torch import optim,nn
@@ -250,9 +257,13 @@ def main():
     if not odir:
         odir='StrainAMR_fold_res'
 
-    if not os.path.exists(odir):
-        os.makedirs(odir)
-    ol=open(odir+'/samples_pred_log.txt','w')
+    os.makedirs(odir, exist_ok=True)
+    logs_dir = os.path.join(odir, 'logs')
+    analysis_dir = os.path.join(odir, 'analysis')
+    shap_dir = os.path.join(odir, 'shap')
+    for d in (logs_dir, analysis_dir, shap_dir):
+        os.makedirs(d, exist_ok=True)
+    ol=open(os.path.join(logs_dir,'samples_pred_log.txt'),'w')
     #lss1=765
     #lss2=536
     #lss3=1000
@@ -371,19 +382,17 @@ def main():
                         predictions = model(sentence1)
                     elif fnum == 2:
                         predictions, as1, as2 = model(sentence1, sentence2)
+                        at1_test_tem.append(as1.detach().cpu().numpy())
+                        at2_test_tem.append(as2.detach().cpu().numpy())
                     else:
                         predictions,as1,as2,as3 = model(sentence1,sentence2,sentence3)
+                        at1_test_tem.append(as1.detach().cpu().numpy())
+                        at2_test_tem.append(as2.detach().cpu().numpy())
+                        at3_test_tem.append(as3.detach().cpu().numpy())
 
-                    #print('before_acc:',predictions,flush=True)
-                    #predictions = accelerator.gather(predictions)
-                    #print('after_acc:',predictions,flush=True)
                     batch_y = batch_y.to(device)
-                    #loss = loss_func(predictions.squeeze(1), batch_y.float())
-                    #valid_losses.append(loss.item())
                     logit=torch.sigmoid(predictions.squeeze(1)).cpu().detach().numpy()
-                    #print('logit:',logit,flush=True)
                     pred  = [1 if item > 0.5 else 0 for item in logit]
-                    #print('pred:',pred,flush=True)
                     all_pred+=pred
                     all_logit+=[i for i in logit]
                     test_label+=batch_y.tolist()
@@ -397,11 +406,54 @@ def main():
             print(f'Test set || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',flush=True)
             print(f'Test set || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',file=ol)
 
+        if fnum == 3:
+            test_at1 = np.vstack(at1_test_tem)
+            test_at2 = np.vstack(at2_test_tem)
+            test_at3 = np.vstack(at3_test_tem)
+            pc_file = os.path.join(indir, 'strains_test_pc_token_fs.txt')
+            snv_file = os.path.join(indir, 'strains_test_sentence_fs.txt')
+            kmer_file = os.path.join(indir, 'strains_test_kmer_token.txt')
+            pc_shap = os.path.join(shap_dir, 'strains_test_pc_token_fs_shap.txt')
+            snv_shap = os.path.join(shap_dir, 'strains_test_sentence_fs_shap.txt')
+            kmer_shap = os.path.join(shap_dir, 'strains_test_kmer_token_shap.txt')
+            pair_pc = os.path.join(shap_dir, 'strains_test_pc_interaction.txt')
+            pair_snv = os.path.join(shap_dir, 'strains_test_snv_interaction.txt')
+            pair_kmer = os.path.join(shap_dir, 'strains_test_kmer_interaction.txt')
+            shap_feature_select_withcls.shap_select(pc_file, pc_shap)
+            shap_feature_select_withcls.shap_select(snv_file, snv_shap)
+            shap_feature_select_withcls.shap_select(kmer_file, kmer_shap)
+            shap_feature_select_withcls.shap_interaction_select(pc_file, pair_pc)
+            shap_feature_select_withcls.shap_interaction_select(snv_file, pair_snv)
+            shap_feature_select_withcls.shap_interaction_select(kmer_file, pair_kmer)
+            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
+                test_at2,
+                pc_file,
+                analysis_dir,
+                'pc_predict',
+                pc_shap,
+                pair_pc,
+                [os.path.join(indir, 'pc_matches.txt')],
+            )
+            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
+                test_at1,
+                snv_file,
+                analysis_dir,
+                'graph_predict',
+                snv_shap,
+                pair_snv,
+                [os.path.join(indir, 'node_token_match.txt')],
+            )
+            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
+                test_at3,
+                kmer_file,
+                analysis_dir,
+                'kmer_predict',
+                kmer_shap,
+                pair_kmer,
+                [os.path.join(indir, 'kmer_token_id.txt')],
+            )
 
-
-        #if fscore>max_f1:
-
-        o2 = open(odir + '/output_sample_prob_predict.txt', 'w+')
+        o2 = open(os.path.join(logs_dir, 'output_sample_prob_predict.txt'), 'w+')
         o2.write('Sample_ID\tLable\tPred\tProb\n')
         c=0
         for e in test_label:
