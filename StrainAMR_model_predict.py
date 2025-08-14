@@ -419,9 +419,15 @@ def main():
             pair_pc = os.path.join(shap_dir, 'strains_test_pc_interaction.txt')
             pair_snv = os.path.join(shap_dir, 'strains_test_snv_interaction.txt')
             pair_kmer = os.path.join(shap_dir, 'strains_test_kmer_interaction.txt')
-            shap_feature_select_withcls.shap_select(pc_file, pc_shap)
-            shap_feature_select_withcls.shap_select(snv_file, snv_shap)
-            shap_feature_select_withcls.shap_select(kmer_file, kmer_shap)
+            shap_feature_select_withcls.shap_select(
+                pc_file, pc_shap, [os.path.join(indir, 'pc_matches.txt')]
+            )
+            shap_feature_select_withcls.shap_select(
+                snv_file, snv_shap, [os.path.join(indir, 'node_token_match.txt')]
+            )
+            shap_feature_select_withcls.shap_select(
+                kmer_file, kmer_shap, [os.path.join(indir, 'kmer_token_id.txt')]
+            )
             shap_feature_select_withcls.shap_interaction_select(pc_file, pair_pc)
             shap_feature_select_withcls.shap_interaction_select(snv_file, pair_snv)
             shap_feature_select_withcls.shap_interaction_select(kmer_file, pair_kmer)

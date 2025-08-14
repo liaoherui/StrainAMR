@@ -7,6 +7,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 import matplotlib.pyplot as plt
 import shap
+import utils
 current_dir = os.path.dirname(os.path.realpath(__file__))
 import sys
 # Add the 'system' directory to the Python path
@@ -92,11 +93,12 @@ def regenerate(infile,ofile,arrs):
     return td
             
 
-def shap_select(infile,ofile):
-    based=os.path.dirname(ofile)
-    pre=os.path.splitext(os.path.basename(infile))[0]
-    #X_train, X_test, y_train, y_test,feas=convert2arr(infile)
-    X,y,feas,strains=convert2arr(infile)
+def shap_select(infile, ofile, mapping_files=None):
+    """Run SHAP on tokens and write a table with feature names."""
+    based = os.path.dirname(ofile)
+    pre = os.path.splitext(os.path.basename(infile))[0]
+    X, y, feas, strains = convert2arr(infile)
+    map_dict = utils.load_token_mappings(mapping_files)
     nX=pd.DataFrame(data = X,columns=feas,index=strains)
     #X_test,y_test,w=convert2arr(intest)
     clf = RandomForestClassifier(random_state=0,n_estimators=500)
@@ -176,27 +178,24 @@ def shap_select(infile,ofile):
     shapm = np.abs(shap_values).mean(0)
     if len(shap_values) == 2:
         shapm_0 = np.abs(shap_values_0).mean(0)
-    # print(shapm.shape)
-    # exit()
     d = dict(zip(feas, shapm))
     if len(shap_values) == 2:
-        ds0=dict(zip(feas, shapm_0))
-
+        ds0 = dict(zip(feas, shapm_0))
     res = sorted(d.items(), key=lambda x: x[1], reverse=True)
-    # print(res[:10])
     c = 0
     o = open(based + '/' + pre + '_shap.txt', 'w+')
     if len(shap_values) == 2:
-        o.write('ID\tToken_ID\tShap_0\tShap_1\n')
+        o.write('ID\tToken_ID\tFeature\tShap_0\tShap_1\n')
     else:
-        o.write('ID\tToken_ID\tShap\n')
+        o.write('ID\tToken_ID\tFeature\tShap\n')
     for r in res:
-        # print()
-        if r[1] == 0: continue
+        if r[1] == 0:
+            continue
+        feat_name = utils.token_to_feature(r[0], map_dict)
         if len(shap_values) == 2:
-            o.write(str(c + 1) + '\t' + r[0] + '\t' + str(r[1]) +'\t'+str(ds0[r[0]]) + '\n')
+            o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{r[1]}\t{ds0[r[0]]}\n")
         else:
-            o.write(str(c + 1) + '\t' + r[0] + '\t' + str(r[1]) + '\n')
+            o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{r[1]}\n")
         c += 1
 
     td = regenerate(infile, ofile, arrs)

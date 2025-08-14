@@ -119,6 +119,7 @@ sh batch_train_3fold_exp.sh
   - Token files such as `strains_*_sentence_fs.txt`, `strains_*_pc_token_fs.txt`, `strains_*_kmer_token.txt`
   - Mapping files (`node_token_match.txt`, `kmer_token_id.txt`) linking token IDs to genomic features
   - SHAP-filtered feature lists (`*_shap_filter.txt`)
+  - `shap/` – SHAP value tables with token IDs mapped to genes or SNV positions
 - **Model training** (`StrainAMR_model_train.py`)
   - Results are grouped into subfolders within the specified `--outdir`
     - `models/` – checkpoints such as `best_model_f1_score.pt`
@@ -128,7 +129,7 @@ sh batch_train_3fold_exp.sh
 - **Prediction** (`StrainAMR_model_predict.py`)
   - Results saved under the specified `--outdir`
     - `logs/` – prediction summaries and per-sample probabilities
-    - `shap/` – SHAP value tables and interaction scores for test genomes
+    - `shap/` – SHAP value tables and interaction scores for test genomes with feature names
     - `analysis/` – attention-weight graphs and top-token tables for predictions
 
 ## New Features
