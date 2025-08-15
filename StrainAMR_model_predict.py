@@ -423,7 +423,8 @@ def main():
                 pc_file, pc_shap, [os.path.join(indir, 'pc_matches.txt')]
             )
             shap_feature_select_withcls.shap_select(
-                snv_file, snv_shap, [os.path.join(indir, 'node_token_match.txt')]
+                snv_file, snv_shap, [os.path.join(indir, 'node_token_match.txt')],
+                rgi_dir=os.path.join(indir, 'rgi_train')
             )
             shap_feature_select_withcls.shap_select(
                 kmer_file, kmer_shap, [os.path.join(indir, 'kmer_token_id.txt')]
@@ -448,6 +449,7 @@ def main():
                 snv_shap,
                 pair_snv,
                 [os.path.join(indir, 'node_token_match.txt')],
+                rgi_dir=os.path.join(indir, 'rgi_train')
             )
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
                 test_at3,

@@ -125,18 +125,19 @@ def stat_sent_count(sentence_file):
                 lf(s,dnc)
     return dpc,dnc
 
-def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None):
+def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None, rgi_map=None):
     d=nx.to_dict_of_dicts(dg)
     o=open(odir+'/'+pre+'_tokens_top_raw.txt','w+')
     o2=open(odir+'/'+pre+'_tokens_top_norm.txt','w+')
     o3=open(odir+'/'+pre+'_tokens_top_norm_sent.txt','w+')
     o4=open(odir+'/'+pre+'_tokens_top_norm_sent_m10_new.txt','w+')
     o5=open(odir+'/'+pre+'_tokens_top_norm_sent_m50_new.txt','w+')
-    o.write('ID\tShap_token_ID\tImportant_token\tFeature\tAttention_weight\n')
-    o2.write('ID\tShap_token_ID\tImportant_token\tFeature\tAttention_weight\n')
-    o3.write('ID\tShap_token_ID\tImportant_token\tFeature\tAttention_weight\n')
-    o4.write('ID\tShap_token_ID\tImportant_token\tFeature\tAttention_weight\n')
-    o5.write('ID\tShap_token_ID\tImportant_token\tFeature\tAttention_weight\n')
+    extra = ''
+    if rgi_map:
+        extra = '\tAMR_Gene_Family\tSNPs_in_Best_Hit_ARO'
+    header = 'ID\tShap_token_ID\tImportant_token\tFeature' + extra + '\tAttention_weight\n'
+    for fh in (o, o2, o3, o4, o5):
+        fh.write(header)
     c=1
     c2=1
     c3=1
@@ -167,29 +168,34 @@ def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None):
         res=sorted(tem.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
         for r in res[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
-            o.write(f"{c}\t{s}\t{r[0]}\t{feat}\t{r[1]}\n")
+            amr, snp = rgi_map.get(feat, ('NA','NA')) if rgi_map else ('NA','NA')
+            o.write(f"{c}\t{s}\t{r[0]}\t{feat}\t{amr}\t{snp}\t{r[1]}\n")
             c+=1
         res2=sorted(tem2.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
 
         for r in res2[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
-            o2.write(f"{c2}\t{s}\t{r[0]}\t{feat}\t{r[1]}\n")
+            amr, snp = rgi_map.get(feat, ('NA','NA')) if rgi_map else ('NA','NA')
+            o2.write(f"{c2}\t{s}\t{r[0]}\t{feat}\t{amr}\t{snp}\t{r[1]}\n")
             c2+=1
 
         res3=sorted(tem3.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
         for r in res3[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
-            o3.write(f"{c3}\t{s}\t{r[0]}\t{feat}\t{r[1]}\n")
+            amr, snp = rgi_map.get(feat, ('NA','NA')) if rgi_map else ('NA','NA')
+            o3.write(f"{c3}\t{s}\t{r[0]}\t{feat}\t{amr}\t{snp}\t{r[1]}\n")
             c3+=1
         res4=sorted(tem4.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
         for r in res4[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
-            o4.write(f"{c4}\t{s}\t{r[0]}\t{feat}\t{r[1]}\n")
+            amr, snp = rgi_map.get(feat, ('NA','NA')) if rgi_map else ('NA','NA')
+            o4.write(f"{c4}\t{s}\t{r[0]}\t{feat}\t{amr}\t{snp}\t{r[1]}\n")
             c4+=1
         res5=sorted(tem5.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
         for r in res5[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
-            o5.write(f"{c5}\t{s}\t{r[0]}\t{feat}\t{r[1]}\n")
+            amr, snp = rgi_map.get(feat, ('NA','NA')) if rgi_map else ('NA','NA')
+            o5.write(f"{c5}\t{s}\t{r[0]}\t{feat}\t{amr}\t{snp}\t{r[1]}\n")
             c5+=1
 
     
@@ -435,7 +441,7 @@ def scan_graphs(out,g,pre):
 
     
 
-def obtain_important_tokens(matrix, sentence_file, odir, pre, shap_top_file, shap_pair_file=None, map_files=None):
+def obtain_important_tokens(matrix, sentence_file, odir, pre, shap_top_file, shap_pair_file=None, map_files=None, rgi_dir=None):
     '''
     f=open(sentence_file,'r')
     sentence_new_file=uuid.uuid1().hex+'.txt'
@@ -476,6 +482,7 @@ def obtain_important_tokens(matrix, sentence_file, odir, pre, shap_top_file, sha
             pair_scores[(int(p[0]), int(p[1]))] = float(p[2])
         fp2.close()
     map_dict = utils.load_token_mappings(map_files)
+    rgi_map = utils.load_rgi_annotations(rgi_dir)
     #exit()
     f=open(sentence_file,'r')
     line=f.readline()
@@ -566,8 +573,8 @@ def obtain_important_tokens(matrix, sentence_file, odir, pre, shap_top_file, sha
     graph_dir = os.path.join(odir, 'graphs')
     os.makedirs(token_dir, exist_ok=True)
     os.makedirs(graph_dir, exist_ok=True)
-    check_top10_attn(token_dir, dgp, pre + '_positive', shap_top, dpc, dpcs, dpc_sc, map_dict)
-    check_top10_attn(token_dir, dgn, pre + '_negative', shap_top, dnc, dpns, dnc_sc, map_dict)
+    check_top10_attn(token_dir, dgp, pre + '_positive', shap_top, dpc, dpcs, dpc_sc, map_dict, rgi_map)
+    check_top10_attn(token_dir, dgn, pre + '_negative', shap_top, dnc, dpns, dnc_sc, map_dict, rgi_map)
 
     scan_graphs(graph_dir, dgp, pre+'_positive')
     scan_graphs(graph_dir, dgn, pre+'_negative')

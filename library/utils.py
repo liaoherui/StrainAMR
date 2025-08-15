@@ -29,3 +29,32 @@ def load_token_mappings(files):
 def token_to_feature(token_id, mapping):
     """Return human readable feature for token_id if available."""
     return mapping.get(str(token_id), str(token_id))
+
+
+def load_rgi_annotations(rgi_dir):
+    """Parse RGI tabular outputs and map ARO IDs to (AMR Gene Family, SNPs)."""
+    info = {}
+    if not rgi_dir or not os.path.isdir(rgi_dir):
+        return info
+    for fname in os.listdir(rgi_dir):
+        if not fname.endswith('.txt'):
+            continue
+        path = os.path.join(rgi_dir, fname)
+        with open(path, 'r') as f:
+            header = f.readline().strip().split('\t')
+            header = [h.replace(' ', '_') for h in header]
+            idx = {h: i for i, h in enumerate(header)}
+            aro_i = idx.get('Best_Hit_ARO') or idx.get('ARO')
+            if aro_i is None:
+                continue
+            gf_i = idx.get('AMR_Gene_Family')
+            snp_i = idx.get('SNPs_in_Best_Hit_ARO')
+            for line in f:
+                parts = line.strip().split('\t')
+                if len(parts) <= aro_i:
+                    continue
+                aro = parts[aro_i]
+                gf = parts[gf_i] if gf_i is not None and gf_i < len(parts) else 'NA'
+                snp = parts[snp_i] if snp_i is not None and snp_i < len(parts) else 'NA'
+                info[aro] = (gf, snp)
+    return info
