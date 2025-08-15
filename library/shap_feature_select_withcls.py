@@ -242,8 +242,11 @@ def shap_select(infile, ofile, mapping_files=None, rgi_dir=None):
     y_df_r=y_df[y_df.index.isin(rs)]
     #print(y_df_r)
     #exit()
-    CRC_kmeans = shap_clustering(PC_scores=shap_PC,y=y_df_r)
-    n_clust=3 # Default 3 clusters
+    CRC_kmeans = shap_clustering(PC_scores=shap_PC, y=y_df_r)
+    n_clust = min(3, len(rs))  # cap clusters by available samples
+    if n_clust < 1:
+        print('Not enough correctly predicted Resistant strains for clustering.')
+        return
     #nrows, ncols= 2, 2
     #fig = plt.figure(figsize=(15,10),dpi=70)
 
