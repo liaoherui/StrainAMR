@@ -626,6 +626,13 @@ def main():
     pair_pc = os.path.join(shap_dir, 'strains_train_pc_interaction.txt')
     pair_snv = os.path.join(shap_dir, 'strains_train_snv_interaction.txt')
     pair_kmer = os.path.join(shap_dir, 'strains_train_kmer_interaction.txt')
+
+    map_files_all = [
+        os.path.join(indir, 'node_token_match.txt'),
+        os.path.join(indir, 'pc_matches.txt'),
+        os.path.join(indir, 'kmer_token_id.txt'),
+    ]
+
     shap_feature_select_withcls.shap_interaction_select(
         indir + '/strains_train_pc_token_fs.txt',
         pair_pc,
@@ -651,7 +658,8 @@ def main():
                 'pc_train',
                 os.path.join(indir, 'shap', 'strains_train_pc_token_fs_shap.txt'),
                 pair_pc,
-                [indir + '/pc_matches.txt']
+                map_files_all,
+                rgi_dir=os.path.join(indir, 'rgi_train')
             )
         if fused=='snv':
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
@@ -661,7 +669,7 @@ def main():
                 'graph_train',
                 os.path.join(indir, 'shap', 'strains_train_sentence_fs_shap.txt'),
                 pair_snv,
-                [indir + '/node_token_match.txt'],
+                map_files_all,
                 rgi_dir=os.path.join(indir, 'rgi_train')
             )
 
@@ -673,7 +681,8 @@ def main():
                 'kmer_train',
                 os.path.join(indir, 'shap', 'strains_train_kmer_token_shap.txt'),
                 pair_kmer,
-                [indir + '/kmer_token_id.txt']
+                map_files_all,
+                rgi_dir=os.path.join(indir, 'rgi_train')
             )
     if fnum==2:
         if re.search('pc',fused):
@@ -684,7 +693,8 @@ def main():
                 'pc_train',
                 os.path.join(indir, 'shap', 'strains_train_pc_token_fs_shap.txt'),
                 pair_pc,
-                [indir + '/pc_matches.txt']
+                map_files_all,
+                rgi_dir=os.path.join(indir, 'rgi_train')
             )
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
                 train_at1,
@@ -693,7 +703,7 @@ def main():
                 'graph_train',
                 os.path.join(indir, 'shap', 'strains_train_sentence_fs_shap.txt'),
                 pair_snv,
-                [indir + '/node_token_match.txt'],
+                map_files_all,
                 rgi_dir=os.path.join(indir, 'rgi_train')
             )
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
@@ -703,7 +713,8 @@ def main():
                 'kmer_train',
                 os.path.join(indir, 'shap', 'strains_train_kmer_token_shap.txt'),
                 pair_kmer,
-                [indir + '/kmer_token_id.txt']
+                map_files_all,
+                rgi_dir=os.path.join(indir, 'rgi_train')
             )
     elif fnum==3:
         analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
@@ -713,7 +724,8 @@ def main():
             'pc_train',
             os.path.join(indir, 'shap', 'strains_train_pc_token_fs_shap.txt'),
             pair_pc,
-            [indir + '/pc_matches.txt']
+            map_files_all,
+            rgi_dir=os.path.join(indir, 'rgi_train')
         )
         analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
             train_at1,
@@ -722,7 +734,7 @@ def main():
             'graph_train',
             os.path.join(indir, 'shap', 'strains_train_sentence_fs_shap.txt'),
             pair_snv,
-            [indir + '/node_token_match.txt'],
+            map_files_all,
             rgi_dir=os.path.join(indir, 'rgi_train')
         )
         analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
@@ -732,7 +744,8 @@ def main():
             'kmer_train',
             os.path.join(indir, 'shap', 'strains_train_kmer_token_shap.txt'),
             pair_kmer,
-            [indir + '/kmer_token_id.txt']
+            map_files_all,
+            rgi_dir=os.path.join(indir, 'rgi_train')
         )
         if tm == 0:
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
@@ -742,7 +755,8 @@ def main():
                 'pc_test',
                 os.path.join(indir, 'shap', 'strains_train_pc_token_fs_shap.txt'),
                 pair_pc,
-                [indir + '/pc_matches.txt']
+                map_files_all,
+                rgi_dir=os.path.join(indir, 'rgi_train')
             )
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
                 test_at1,
@@ -751,7 +765,7 @@ def main():
                 'graph_test',
                 os.path.join(indir, 'shap', 'strains_train_sentence_fs_shap.txt'),
                 pair_snv,
-                [indir + '/node_token_match.txt'],
+                map_files_all,
                 rgi_dir=os.path.join(indir, 'rgi_train')
             )
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
@@ -761,7 +775,8 @@ def main():
                 'kmer_test',
                 os.path.join(indir, 'shap', 'strains_train_kmer_token_shap.txt'),
                 pair_kmer,
-                [indir + '/kmer_token_id.txt']
+                map_files_all,
+                rgi_dir=os.path.join(indir, 'rgi_train')
             )
 
 

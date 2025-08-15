@@ -137,13 +137,17 @@ def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None, rgi_m
     o3 = open(odir + '/' + pre + '_tokens_top_norm_sent.txt', 'w+')
     o4 = open(odir + '/' + pre + '_tokens_top_norm_sent_m10_new.txt', 'w+')
     o5 = open(odir + '/' + pre + '_tokens_top_norm_sent_m50_new.txt', 'w+')
-    extra = ''
+
     if rgi_map:
-        extra = '\tAMR_Gene_Family'
-    header = (
-        'ID\tShap_token_ID\tShap_Feature\tImportant_token\tFeature'
-        + extra + '\tAttention_weight\n'
-    )
+        header = (
+            'ID\tShap_token_ID\tShap_Feature\tShap_AMR_Gene_Family\t'
+            'Important_token\tFeature\tAMR_Gene_Family\tAttention_weight\n'
+        )
+    else:
+        header = (
+            'ID\tShap_token_ID\tShap_Feature\tImportant_token\tFeature\t'
+            'Attention_weight\n'
+        )
 
     for fh in (o, o2, o3, o4, o5):
         fh.write(header)
@@ -176,17 +180,34 @@ def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None, rgi_m
                 tem5[t] = 0
         res = sorted(tem.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
         shap_feat = utils.token_to_feature(s, map_dict)
+
+        shap_amr = rgi_map.get(shap_feat, 'NA') if rgi_map else 'NA'
         for r in res[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
-
             amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
-            o.write(f"{c}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
+            if rgi_map:
+                o.write(
+                    f"{c}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o.write(
+                    f"{c}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
+
             c += 1
         res2 = sorted(tem2.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
         for r in res2[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
             amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
-            o2.write(f"{c2}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
+
+            if rgi_map:
+                o2.write(
+                    f"{c2}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o2.write(
+                    f"{c2}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
             c2 += 1
 
 
@@ -194,21 +215,45 @@ def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None, rgi_m
         for r in res3[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
 
-            
             amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
-            o3.write(f"{c3}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
+            if rgi_map:
+                o3.write(
+                    f"{c3}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o3.write(
+                    f"{c3}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
+
             c3 += 1
         res4 = sorted(tem4.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
         for r in res4[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
             amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
-            o4.write(f"{c4}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
+
+            if rgi_map:
+                o4.write(
+                    f"{c4}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o4.write(
+                    f"{c4}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
+
             c4 += 1
         res5 = sorted(tem5.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
         for r in res5[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
             amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
-            o5.write(f"{c5}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
+
+            if rgi_map:
+                o5.write(
+                    f"{c5}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o5.write(
+                    f"{c5}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
             c5 += 1
 
 
@@ -485,15 +530,23 @@ def obtain_important_tokens(matrix, sentence_file, odir, pre, shap_top_file, sha
     pair_scores = {}
     if shap_pair_file and os.path.exists(shap_pair_file):
         fp2 = open(shap_pair_file, 'r')
-        fp2.readline()
+        header = fp2.readline().strip().split('\t')
+        hdict = {h: i for i, h in enumerate(header)}
+        t1i = hdict.get('Token_ID_1', 0)
+        t2i = hdict.get('Token_ID_2', 1)
+        si = hdict.get('Interaction', 2)
         for line in fp2:
-            line=line.strip()
+            line = line.strip()
             if not line:
                 continue
             p = line.split('\t')
-            if len(p) < 3:
+            try:
+                t1 = int(p[t1i])
+                t2 = int(p[t2i])
+                score = float(p[si])
+            except (ValueError, IndexError):
                 continue
-            pair_scores[(int(p[0]), int(p[1]))] = float(p[2])
+            pair_scores[(t1, t2)] = score
         fp2.close()
     map_dict = utils.load_token_mappings(map_files)
     rgi_map = utils.load_rgi_annotations(rgi_dir)
