@@ -94,12 +94,13 @@ def regenerate(infile,ofile,arrs):
     return td
             
 
-def shap_select(infile, ofile, mapping_files=None):
-    """Run SHAP on tokens and write a table with feature names."""
+def shap_select(infile, ofile, mapping_files=None, rgi_dir=None):
+    """Run SHAP on tokens and write a table with feature names and optional RGI info."""
     based = os.path.dirname(ofile)
     pre = os.path.splitext(os.path.basename(infile))[0]
     X, y, feas, strains = convert2arr(infile)
     map_dict = utils.load_token_mappings(mapping_files)
+    rgi_map = utils.load_rgi_annotations(rgi_dir)
     nX=pd.DataFrame(data = X,columns=feas,index=strains)
     #X_test,y_test,w=convert2arr(intest)
     clf = RandomForestClassifier(random_state=0,n_estimators=500)
@@ -185,18 +186,28 @@ def shap_select(infile, ofile, mapping_files=None):
     res = sorted(d.items(), key=lambda x: x[1], reverse=True)
     c = 0
     o = open(based + '/' + pre + '_shap.txt', 'w+')
+    extra = ''
+    if rgi_map:
+        extra = '\tAMR_Gene_Family'
     if len(shap_values) == 2:
-        o.write('ID\tToken_ID\tFeature\tShap_0\tShap_1\n')
+        o.write('ID\tToken_ID\tFeature' + extra + '\tShap_0\tShap_1\n')
     else:
-        o.write('ID\tToken_ID\tFeature\tShap\n')
+        o.write('ID\tToken_ID\tFeature' + extra + '\tShap\n')
     for r in res:
         if r[1] == 0:
             continue
         feat_name = utils.token_to_feature(r[0], map_dict)
+        amr = rgi_map.get(feat_name, 'NA') if rgi_map else 'NA'
         if len(shap_values) == 2:
-            o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{r[1]}\t{ds0[r[0]]}\n")
+            if rgi_map:
+                o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{amr}\t{r[1]}\t{ds0[r[0]]}\n")
+            else:
+                o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{r[1]}\t{ds0[r[0]]}\n")
         else:
-            o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{r[1]}\n")
+            if rgi_map:
+                o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{amr}\t{r[1]}\n")
+            else:
+                o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{r[1]}\n")
         c += 1
 
     td = regenerate(infile, ofile, arrs)
@@ -226,8 +237,11 @@ def shap_select(infile, ofile, mapping_files=None):
     y_df_r=y_df[y_df.index.isin(rs)]
     #print(y_df_r)
     #exit()
-    CRC_kmeans = shap_clustering(PC_scores=shap_PC,y=y_df_r)
-    n_clust=3 # Default 3 clusters
+    CRC_kmeans = shap_clustering(PC_scores=shap_PC, y=y_df_r)
+    n_clust = min(3, len(rs))  # cap clusters by available samples
+    if n_clust < 1:
+        print('Not enough correctly predicted Resistant strains for clustering.')
+        return
     #nrows, ncols= 2, 2
     #fig = plt.figure(figsize=(15,10),dpi=70)
 
@@ -319,7 +333,7 @@ def shap_select(infile, ofile, mapping_files=None):
 #shap_select('../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold2/strains_train_kmer_token.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold2/strains_train_kmer_token_shap_filter.txt')
 #exit()
 
-def shap_interaction_select(infile, pair_out, top_n=100):
+def shap_interaction_select(infile, pair_out, top_n=100, map_files=None, rgi_dir=None):
     """Compute SHAP interaction scores and output top interacting token pairs."""
     X, y, feats, strains = convert2arr(infile)
     clf = RandomForestClassifier(random_state=0, n_estimators=500)
@@ -334,13 +348,25 @@ def shap_interaction_select(infile, pair_out, top_n=100):
         for j in range(i + 1, len(feats)):
             pairs.append((feats[i], feats[j], inter_mean[i, j]))
     pairs.sort(key=lambda x: x[2], reverse=True)
+    map_dict = utils.load_token_mappings(map_files)
+    rgi_map = utils.load_rgi_annotations(rgi_dir)
     with open(pair_out, 'w+') as o:
-        o.write('Token_ID_1\tToken_ID_2\tInteraction\n')
+        if rgi_map:
+            o.write('Token_ID_1\tFeature_1\tAMR_Gene_Family_1\tToken_ID_2\tFeature_2\tAMR_Gene_Family_2\tInteraction\n')
+        else:
+            o.write('Token_ID_1\tFeature_1\tToken_ID_2\tFeature_2\tInteraction\n')
         c = 0
         for a, b, v in pairs:
             if v == 0:
                 continue
-            o.write(f'{a}\t{b}\t{v}\n')
+            f1 = utils.token_to_feature(a, map_dict)
+            f2 = utils.token_to_feature(b, map_dict)
+            if rgi_map:
+                amr1 = rgi_map.get(f1, 'NA')
+                amr2 = rgi_map.get(f2, 'NA')
+                o.write(f'{a}\t{f1}\t{amr1}\t{b}\t{f2}\t{amr2}\t{v}\n')
+            else:
+                o.write(f'{a}\t{f1}\t{b}\t{f2}\t{v}\n')
             c += 1
             if c >= top_n:
                 break
