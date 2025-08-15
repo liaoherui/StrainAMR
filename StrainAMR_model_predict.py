@@ -313,7 +313,7 @@ def main():
     #optimizer=optim.Adam(model.parameters(), lr=lr)
     #loss_func = nn.BCEWithLogitsLoss()
     # Load the model
-    model.load_state_dict(torch.load(model_PATH))
+    model.load_state_dict(torch.load(model_PATH, map_location=device))
 
 
     x_train1=x_train1.astype(int)
