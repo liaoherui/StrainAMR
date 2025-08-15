@@ -211,7 +211,7 @@ def shap_select(infile, ofile, mapping_files=None, rgi_dir=None):
             if rgi_map:
 
                 o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{amr}\t{r[1]}\n")
-                
+
             else:
                 o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{r[1]}\n")
         c += 1
