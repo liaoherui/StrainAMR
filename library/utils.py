@@ -32,7 +32,9 @@ def token_to_feature(token_id, mapping):
 
 
 def load_rgi_annotations(rgi_dir):
-    """Parse RGI tabular outputs and map ARO IDs to (AMR Gene Family, SNPs)."""
+
+    """Parse RGI tabular outputs and map ARO IDs to AMR Gene Family."""
+
     info = {}
     if not rgi_dir or not os.path.isdir(rgi_dir):
         return info
@@ -44,17 +46,19 @@ def load_rgi_annotations(rgi_dir):
             header = f.readline().strip().split('\t')
             header = [h.replace(' ', '_') for h in header]
             idx = {h: i for i, h in enumerate(header)}
-            aro_i = idx.get('Best_Hit_ARO') or idx.get('ARO')
+
+            aro_i = idx.get('ARO')
             if aro_i is None:
                 continue
             gf_i = idx.get('AMR_Gene_Family')
-            snp_i = idx.get('SNPs_in_Best_Hit_ARO')
+
             for line in f:
                 parts = line.strip().split('\t')
                 if len(parts) <= aro_i:
                     continue
                 aro = parts[aro_i]
                 gf = parts[gf_i] if gf_i is not None and gf_i < len(parts) else 'NA'
-                snp = parts[snp_i] if snp_i is not None and snp_i < len(parts) else 'NA'
-                info[aro] = (gf, snp)
+
+                info[aro] = gf
+
     return info

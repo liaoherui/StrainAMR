@@ -134,7 +134,9 @@ def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None, rgi_m
     o5=open(odir+'/'+pre+'_tokens_top_norm_sent_m50_new.txt','w+')
     extra = ''
     if rgi_map:
-        extra = '\tAMR_Gene_Family\tSNPs_in_Best_Hit_ARO'
+
+        extra = '\tAMR_Gene_Family'
+
     header = 'ID\tShap_token_ID\tImportant_token\tFeature' + extra + '\tAttention_weight\n'
     for fh in (o, o2, o3, o4, o5):
         fh.write(header)
@@ -168,34 +170,43 @@ def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None, rgi_m
         res=sorted(tem.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
         for r in res[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
-            amr, snp = rgi_map.get(feat, ('NA','NA')) if rgi_map else ('NA','NA')
-            o.write(f"{c}\t{s}\t{r[0]}\t{feat}\t{amr}\t{snp}\t{r[1]}\n")
+
+            amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
+            o.write(f"{c}\t{s}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
+
             c+=1
         res2=sorted(tem2.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
 
         for r in res2[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
-            amr, snp = rgi_map.get(feat, ('NA','NA')) if rgi_map else ('NA','NA')
-            o2.write(f"{c2}\t{s}\t{r[0]}\t{feat}\t{amr}\t{snp}\t{r[1]}\n")
+
+            amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
+            o2.write(f"{c2}\t{s}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
+
             c2+=1
 
         res3=sorted(tem3.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
         for r in res3[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
-            amr, snp = rgi_map.get(feat, ('NA','NA')) if rgi_map else ('NA','NA')
-            o3.write(f"{c3}\t{s}\t{r[0]}\t{feat}\t{amr}\t{snp}\t{r[1]}\n")
+
+            amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
+            o3.write(f"{c3}\t{s}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
             c3+=1
         res4=sorted(tem4.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
         for r in res4[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
-            amr, snp = rgi_map.get(feat, ('NA','NA')) if rgi_map else ('NA','NA')
-            o4.write(f"{c4}\t{s}\t{r[0]}\t{feat}\t{amr}\t{snp}\t{r[1]}\n")
+
+            amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
+            o4.write(f"{c4}\t{s}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
+
             c4+=1
         res5=sorted(tem5.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
         for r in res5[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
-            amr, snp = rgi_map.get(feat, ('NA','NA')) if rgi_map else ('NA','NA')
-            o5.write(f"{c5}\t{s}\t{r[0]}\t{feat}\t{amr}\t{snp}\t{r[1]}\n")
+
+            amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
+            o5.write(f"{c5}\t{s}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
+
             c5+=1
 
     
