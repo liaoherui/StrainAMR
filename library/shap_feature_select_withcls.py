@@ -94,12 +94,13 @@ def regenerate(infile,ofile,arrs):
     return td
             
 
-def shap_select(infile, ofile, mapping_files=None):
-    """Run SHAP on tokens and write a table with feature names."""
+def shap_select(infile, ofile, mapping_files=None, rgi_dir=None):
+    """Run SHAP on tokens and write a table with feature names and optional RGI info."""
     based = os.path.dirname(ofile)
     pre = os.path.splitext(os.path.basename(infile))[0]
     X, y, feas, strains = convert2arr(infile)
     map_dict = utils.load_token_mappings(mapping_files)
+    rgi_map = utils.load_rgi_annotations(rgi_dir)
     nX=pd.DataFrame(data = X,columns=feas,index=strains)
     #X_test,y_test,w=convert2arr(intest)
     clf = RandomForestClassifier(random_state=0,n_estimators=500)
@@ -185,18 +186,28 @@ def shap_select(infile, ofile, mapping_files=None):
     res = sorted(d.items(), key=lambda x: x[1], reverse=True)
     c = 0
     o = open(based + '/' + pre + '_shap.txt', 'w+')
+    extra = ''
+    if rgi_map:
+        extra = '\tAMR_Gene_Family'
     if len(shap_values) == 2:
-        o.write('ID\tToken_ID\tFeature\tShap_0\tShap_1\n')
+        o.write('ID\tToken_ID\tFeature' + extra + '\tShap_0\tShap_1\n')
     else:
-        o.write('ID\tToken_ID\tFeature\tShap\n')
+        o.write('ID\tToken_ID\tFeature' + extra + '\tShap\n')
     for r in res:
         if r[1] == 0:
             continue
         feat_name = utils.token_to_feature(r[0], map_dict)
+        amr = rgi_map.get(feat_name, 'NA') if rgi_map else 'NA'
         if len(shap_values) == 2:
-            o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{r[1]}\t{ds0[r[0]]}\n")
+            if rgi_map:
+                o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{amr}\t{r[1]}\t{ds0[r[0]]}\n")
+            else:
+                o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{r[1]}\t{ds0[r[0]]}\n")
         else:
-            o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{r[1]}\n")
+            if rgi_map:
+                o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{amr}\t{r[1]}\n")
+            else:
+                o.write(f"{c + 1}\t{r[0]}\t{feat_name}\t{r[1]}\n")
         c += 1
 
     td = regenerate(infile, ofile, arrs)

@@ -639,7 +639,8 @@ def main():
                 'graph_train',
                 indir + '/strains_train_sentence_fs_shap.txt',
                 pair_snv,
-                [indir + '/node_token_match.txt']
+                [indir + '/node_token_match.txt'],
+                rgi_dir=os.path.join(indir, 'rgi_train')
             )
 
         if fused=='kmer':
@@ -670,7 +671,8 @@ def main():
                 'graph_train',
                 indir + '/strains_train_sentence_fs_shap.txt',
                 pair_snv,
-                [indir + '/node_token_match.txt']
+                [indir + '/node_token_match.txt'],
+                rgi_dir=os.path.join(indir, 'rgi_train')
             )
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
                 train_at3,
@@ -698,7 +700,8 @@ def main():
             'graph_train',
             indir + '/strains_train_sentence_fs_shap.txt',
             pair_snv,
-            [indir + '/node_token_match.txt']
+            [indir + '/node_token_match.txt'],
+            rgi_dir=os.path.join(indir, 'rgi_train')
         )
         analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
             train_at3,
@@ -726,7 +729,8 @@ def main():
                 'graph_test',
                 indir + '/strains_train_sentence_fs_shap.txt',
                 pair_snv,
-                [indir + '/node_token_match.txt']
+                [indir + '/node_token_match.txt'],
+                rgi_dir=os.path.join(indir, 'rgi_train')
             )
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
                 test_at3,
