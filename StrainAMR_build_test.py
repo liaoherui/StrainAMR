@@ -4,7 +4,7 @@ import sys
 import argparse
 import numpy as np
 import subprocess
-#from sklearn.model_selection import train_test_split
+import multiprocessing
 from extract_seq_for_graph import extract
 from build_graph_batch_minimap2 import build
 from align_genome_to_graph import align
@@ -21,7 +21,20 @@ def build_dir(idir):
         os.makedirs(idir)
 
 
-def run_prodigal_rgi(dr,odir):
+def _prodigal_rgi_worker(args):
+    s, dr, gdir, ginfo, pdir, rgi = args
+    proc = multiprocessing.current_process()
+    print(f"[Prodigal/RGI] start {s} -- {proc.name}", flush=True)
+    if os.path.exists(rgi + '/' + s + '.txt') and os.path.getsize(rgi + '/' + s + '.txt') != 0:
+        print(f"[Prodigal/RGI] skip {s} -- {proc.name}", flush=True)
+        return
+    if not os.path.exists(pdir + '/' + s + '.faa') or os.path.getsize(pdir + '/' + s + '.faa') == 0:
+        os.system('prodigal -i ' + dr[s] + ' -o ' + ginfo + '/' + s + '.genes -d ' + gdir + '/' + s + '.fa -a ' + pdir + '/' + s + '.faa')
+    os.system('rgi main --input_sequence ' + gdir + '/' + s + '.fa --output_file ' + rgi + '/' + s + ' --local --clean  -n 10')
+    print(f"[Prodigal/RGI] done {s} -- {proc.name}", flush=True)
+
+
+def run_prodigal_rgi(dr, odir, threads=1):
     gdir=odir+'/Genes_ts'
     ginfo=odir+'/Genes_info_ts'
     pdir=odir+'/Proteins_ts'
@@ -31,18 +44,13 @@ def run_prodigal_rgi(dr,odir):
     build_dir(ginfo)
     build_dir(pdir)
     build_dir(rgi)
-    for s in dr:
-        #print(s)
-        #exit()
-        if os.path.exists(rgi+'/'+s+'.txt'):
-            if not os.path.getsize(rgi+'/'+s+'.txt') == 0:continue
-        if not os.path.exists(pdir+'/'+s+'.faa'):
-            os.system('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa'+' -a '+pdir+'/'+s+'.faa')
-        else:
-            if os.path.getsize(pdir+'/'+s+'.faa') == 0:
-                os.system('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa'+' -a '+pdir+'/'+s+'.faa')
-        os.system('rgi main --input_sequence '+gdir+'/'+s+'.fa --output_file '+rgi+'/'+s+' --local --clean  -n 10')
-        #exit()
+
+    params = [(s, dr, gdir, ginfo, pdir, rgi) for s in dr]
+    pool = multiprocessing.Pool(processes=int(threads))
+    for p in params:
+        pool.apply_async(_prodigal_rgi_worker, (p,))
+    pool.close()
+    pool.join()
     return gdir,pdir
 
 def copy_genome(gdir,odir,t):
@@ -307,8 +315,10 @@ def scan_length(odir):
 
 
 #def run(ingenome,label,odir,drug,mfile,intest,label2):
-def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile):
+def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1):
     label=odir+'/train_label.txt'
+    shap_dir = odir + '/shap'
+    build_dir(shap_dir)
     dr={}
     val=[]
     for filename in os.listdir(intest):
@@ -320,7 +330,7 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile):
         val.append(pre)
     # Run prodigal and rgi for all input genomes
     print('Run Prodigal and RGI for all input genomes!',flush=True)
-    gdir,pdir=run_prodigal_rgi(dr,odir)
+    gdir,pdir=run_prodigal_rgi(dr,odir,threads)
     gdir=odir+'/Genes_ts'
     pdir=odir+'/Proteins_ts'
     #exit()
@@ -413,14 +423,14 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile):
         sef_test(work_dir+'/strains_test_sentence.txt',work_dir+'/feature_remain_graph.txt',work_dir+'/strains_test_sentence_fs.txt')
         sef_test(work_dir+'/strains_test_pc_token.txt',work_dir+'/feature_remain_pc.txt',work_dir+'/strains_test_pc_token_fs.txt')
         ### For shap
-        sef_test(work_dir+'/strains_test_sentence_fs.txt',work_dir+'/strains_train_sentence_fs_shap_rmf.txt',work_dir+'/strains_test_sentence_fs_shap_filter.txt')
-        sef_test(work_dir+'/strains_test_pc_token_fs.txt',work_dir+'/strains_train_pc_token_fs_shap_rmf.txt',work_dir+'/strains_test_pc_token_fs_shap_filter.txt')
-        sef_test(work_dir+'/strains_test_kmer_token.txt',work_dir+'/strains_train_kmer_token_shap_rmf.txt',work_dir+'/strains_test_kmer_token_shap_filter.txt')
+        sef_test(work_dir+'/strains_test_sentence_fs.txt',shap_dir+'/strains_train_sentence_fs_shap_rmf.txt',shap_dir+'/strains_test_sentence_fs_shap_filter.txt')
+        sef_test(work_dir+'/strains_test_pc_token_fs.txt',shap_dir+'/strains_train_pc_token_fs_shap_rmf.txt',shap_dir+'/strains_test_pc_token_fs_shap_filter.txt')
+        sef_test(work_dir+'/strains_test_kmer_token.txt',shap_dir+'/strains_train_kmer_token_shap_rmf.txt',shap_dir+'/strains_test_kmer_token_shap_filter.txt')
 
         #c+=1
     scan_length(odir)
     scan_length_fs(odir)
-    scan_length_fs_shap(odir)
+    scan_length_fs_shap(shap_dir)
         #exit()
 
 
@@ -433,7 +443,8 @@ def main():
     parser.add_argument('-p','--pc',dest='close_pc',type=int,help="If set to 1, then will skip pc tokens generation step. (Defaut: 0)" ,default=0)
     parser.add_argument('-s','--snv',dest='close_snv',type=int,help="If set to 1, then will skip snv tokens generation step. (Default: 0)",default=0)
     parser.add_argument('-k','--kmer',dest='close_kmer',type=int,help="If set to 1, then will skip k-mer tokens generation step. (Default:0)",default=0)
-    parser.add_argument('-o','--outdir',dest='outdir',type=str,help="Output directory of results. (Note: The output directory of your input test data must match the out directory of your training data.)") 
+    parser.add_argument('-o','--outdir',dest='outdir',type=str,help="Output directory of results. (Note: The output directory of your input test data must match the out directory of your training data.)")
+    parser.add_argument('-t','--threads',dest='threads',type=int,help="Number of parallel processes. (Default:1)",default=1)
     args=parser.parse_args()
     infile=args.input_file
     lab_file=args.lab_file
@@ -443,10 +454,11 @@ def main():
     kmer_c=args.close_kmer
     mfile=script_dir+'/drug_to_class.txt'
     out=args.outdir
+    threads=args.threads
     if not out:
         print('Please provide the output directoy that matches the out directory of your training data!')
         exit()
-    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile)
+    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile,threads)
 
 if __name__=="__main__":
     sys.exit(main())
