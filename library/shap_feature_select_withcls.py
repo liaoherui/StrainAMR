@@ -188,7 +188,6 @@ def shap_select(infile, ofile, mapping_files=None, rgi_dir=None):
     o = open(based + '/' + pre + '_shap.txt', 'w+')
     extra = ''
     if rgi_map:
-
         extra = '\tAMR_Gene_Family'
 
     if len(shap_values) == 2:

@@ -446,12 +446,6 @@ def main():
                 map_files=[os.path.join(indir, 'kmer_token_id.txt')],
             )
 
-            map_files_all = [
-                os.path.join(indir, 'node_token_match.txt'),
-                os.path.join(indir, 'pc_matches.txt'),
-                os.path.join(indir, 'kmer_token_id.txt'),
-            ]
-
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
                 test_at2,
                 pc_file,
@@ -459,8 +453,8 @@ def main():
                 'pc_predict',
                 pc_shap,
                 pair_pc,
-                map_files_all,
-                rgi_dir=os.path.join(indir, 'rgi_train'),
+                map_files=[os.path.join(indir, 'pc_matches.txt')],
+
             )
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
                 test_at1,
@@ -469,7 +463,7 @@ def main():
                 'graph_predict',
                 snv_shap,
                 pair_snv,
-                map_files_all,
+                map_files=[os.path.join(indir, 'node_token_match.txt')],
                 rgi_dir=os.path.join(indir, 'rgi_train'),
 
             )
@@ -480,8 +474,8 @@ def main():
                 'kmer_predict',
                 kmer_shap,
                 pair_kmer,
-                map_files_all,
-                rgi_dir=os.path.join(indir, 'rgi_train'),
+                map_files=[os.path.join(indir, 'kmer_token_id.txt')],
+
             )
 
         o2 = open(os.path.join(logs_dir, 'output_sample_prob_predict.txt'), 'w+')
