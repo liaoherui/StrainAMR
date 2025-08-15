@@ -444,7 +444,8 @@ def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1):
     shap_feature_select_withcls.shap_select(
         work_dir+'/strains_train_sentence_fs.txt',
         shap_dir+'/strains_train_sentence_fs_shap_filter.txt',
-        [work_dir+'/node_token_match.txt']
+        [work_dir+'/node_token_match.txt'],
+        rgi_dir=work_dir+'/rgi_train'
     )
     shap_feature_select_withcls.shap_select(
         work_dir+'/strains_train_pc_token_fs.txt',
