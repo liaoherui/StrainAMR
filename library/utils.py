@@ -58,7 +58,6 @@ def load_rgi_annotations(rgi_dir):
                     continue
                 aro = parts[aro_i]
                 gf = parts[gf_i] if gf_i is not None and gf_i < len(parts) else 'NA'
-
                 info[aro] = gf
 
     return info

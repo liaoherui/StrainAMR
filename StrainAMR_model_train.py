@@ -626,9 +626,22 @@ def main():
     pair_pc = os.path.join(shap_dir, 'strains_train_pc_interaction.txt')
     pair_snv = os.path.join(shap_dir, 'strains_train_snv_interaction.txt')
     pair_kmer = os.path.join(shap_dir, 'strains_train_kmer_interaction.txt')
-    shap_feature_select_withcls.shap_interaction_select(indir + '/strains_train_pc_token_fs.txt', pair_pc)
-    shap_feature_select_withcls.shap_interaction_select(indir + '/strains_train_sentence_fs.txt', pair_snv)
-    shap_feature_select_withcls.shap_interaction_select(indir + '/strains_train_kmer_token.txt', pair_kmer)
+    shap_feature_select_withcls.shap_interaction_select(
+        indir + '/strains_train_pc_token_fs.txt',
+        pair_pc,
+        map_files=[indir + '/pc_matches.txt'],
+    )
+    shap_feature_select_withcls.shap_interaction_select(
+        indir + '/strains_train_sentence_fs.txt',
+        pair_snv,
+        map_files=[indir + '/node_token_match.txt'],
+        rgi_dir=os.path.join(indir, 'rgi_train'),
+    )
+    shap_feature_select_withcls.shap_interaction_select(
+        indir + '/strains_train_kmer_token.txt',
+        pair_kmer,
+        map_files=[indir + '/kmer_token_id.txt'],
+    )
     if fnum==1:
         if fused=='pc':
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(

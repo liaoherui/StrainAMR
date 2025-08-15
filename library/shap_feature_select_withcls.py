@@ -336,7 +336,7 @@ def shap_select(infile, ofile, mapping_files=None, rgi_dir=None):
 #shap_select('../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold2/strains_train_kmer_token.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold2/strains_train_kmer_token_shap_filter.txt')
 #exit()
 
-def shap_interaction_select(infile, pair_out, top_n=100):
+def shap_interaction_select(infile, pair_out, top_n=100, map_files=None, rgi_dir=None):
     """Compute SHAP interaction scores and output top interacting token pairs."""
     X, y, feats, strains = convert2arr(infile)
     clf = RandomForestClassifier(random_state=0, n_estimators=500)
@@ -351,13 +351,25 @@ def shap_interaction_select(infile, pair_out, top_n=100):
         for j in range(i + 1, len(feats)):
             pairs.append((feats[i], feats[j], inter_mean[i, j]))
     pairs.sort(key=lambda x: x[2], reverse=True)
+    map_dict = utils.load_token_mappings(map_files)
+    rgi_map = utils.load_rgi_annotations(rgi_dir)
     with open(pair_out, 'w+') as o:
-        o.write('Token_ID_1\tToken_ID_2\tInteraction\n')
+        if rgi_map:
+            o.write('Token_ID_1\tFeature_1\tAMR_Gene_Family_1\tToken_ID_2\tFeature_2\tAMR_Gene_Family_2\tInteraction\n')
+        else:
+            o.write('Token_ID_1\tFeature_1\tToken_ID_2\tFeature_2\tInteraction\n')
         c = 0
         for a, b, v in pairs:
             if v == 0:
                 continue
-            o.write(f'{a}\t{b}\t{v}\n')
+            f1 = utils.token_to_feature(a, map_dict)
+            f2 = utils.token_to_feature(b, map_dict)
+            if rgi_map:
+                amr1 = rgi_map.get(f1, 'NA')
+                amr2 = rgi_map.get(f2, 'NA')
+                o.write(f'{a}\t{f1}\t{amr1}\t{b}\t{f2}\t{amr2}\t{v}\n')
+            else:
+                o.write(f'{a}\t{f1}\t{b}\t{f2}\t{v}\n')
             c += 1
             if c >= top_n:
                 break
