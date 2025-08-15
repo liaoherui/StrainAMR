@@ -48,8 +48,8 @@ def select(infile,shap,ofile,n):
 
 
 
-select('../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/strains_train_sentence_fs.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/strains_train_sentence_fs_shap.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/strains_train_sentence_fs_shap_filter_top100.txt',100)
+select('../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/strains_train_sentence_fs.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/shap/strains_train_sentence_fs_shap.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/shap/strains_train_sentence_fs_shap_filter_top100.txt',100)
 
-select('../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/strains_train_pc_token_fs.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/strains_train_pc_token_fs_shap.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/strains_train_pc_token_fs_shap_filter_top100.txt',100)
+select('../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/strains_train_pc_token_fs.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/shap/strains_train_pc_token_fs_shap.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/shap/strains_train_pc_token_fs_shap_filter_top100.txt',100)
 
-select('../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/strains_train_kmer_token.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/strains_train_kmer_token_shap.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/strains_train_kmer_token_shap_filter_top100.txt',100)
+select('../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/strains_train_kmer_token.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/shap/strains_train_kmer_token_shap.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold3/shap/strains_train_kmer_token_shap_filter_top100.txt',100)
