@@ -126,6 +126,7 @@ def stat_sent_count(sentence_file):
     return dpc,dnc
 
 def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None, rgi_map=None):
+
     if map_dict is None:
         map_dict = {}
     if rgi_map is None:
@@ -143,6 +144,7 @@ def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None, rgi_m
         'ID\tShap_token_ID\tShap_Feature\tImportant_token\tFeature'
         + extra + '\tAttention_weight\n'
     )
+
     for fh in (o, o2, o3, o4, o5):
         fh.write(header)
     c=1
@@ -176,6 +178,7 @@ def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None, rgi_m
         shap_feat = utils.token_to_feature(s, map_dict)
         for r in res[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
+
             amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
             o.write(f"{c}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
             c += 1
@@ -186,9 +189,12 @@ def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None, rgi_m
             o2.write(f"{c2}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
             c2 += 1
 
+
         res3 = sorted(tem3.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
         for r in res3[:10]:
             feat = utils.token_to_feature(r[0], map_dict)
+
+            
             amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
             o3.write(f"{c3}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
             c3 += 1
@@ -204,6 +210,7 @@ def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None, rgi_m
             amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
             o5.write(f"{c5}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n")
             c5 += 1
+
 
     
 
