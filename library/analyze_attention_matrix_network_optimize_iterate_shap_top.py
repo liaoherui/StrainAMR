@@ -10,6 +10,7 @@ import markov_clustering as mc
 from networkx.algorithms.community.centrality import girvan_newman
 from cdlib import algorithms
 import random
+import library.utils as utils
 
 def add_dc(i,dc):
     if i not in dc:
@@ -121,64 +122,122 @@ def stat_sent_count(sentence_file):
                 lf(s,dnc)
     return dpc,dnc
 
-def check_top10_attn(odir,dg,pre,shap_top,dc,dcs,dcn):
-    d=nx.to_dict_of_dicts(dg)
-    o=open(odir+'/'+pre+'_tokens_top_raw.txt','w+')
-    o2=open(odir+'/'+pre+'_tokens_top_norm.txt','w+')
-    o3=open(odir+'/'+pre+'_tokens_top_norm_sent.txt','w+')
-    o4=open(odir+'/'+pre+'_tokens_top_norm_sent_m10_new_top.txt','w+')
-    o5=open(odir+'/'+pre+'_tokens_top_norm_sent_m50_new_top.txt','w+')
-    o.write('ID\tShap_token_ID\tImportant_token\tAttention_weight\n')
-    o2.write('ID\tShap_token_ID\tImportant_token\tAttention_weight\n')
-    o3.write('ID\tShap_token_ID\tImportant_token\tAttention_weight\n')
-    o4.write('ID\tShap_token_ID\tImportant_token\tAttention_weight\n')
-    o5.write('ID\tShap_token_ID\tImportant_token\tAttention_weight\n')
-    c=1
-    c2=1
-    c3=1
-    c4=1
-    c5=1
+def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None, rgi_map=None):
+    if map_dict is None:
+        map_dict = {}
+    if rgi_map is None:
+        rgi_map = {}
+    d = nx.to_dict_of_dicts(dg)
+    o = open(odir + '/' + pre + '_tokens_top_raw.txt', 'w+')
+    o2 = open(odir + '/' + pre + '_tokens_top_norm.txt', 'w+')
+    o3 = open(odir + '/' + pre + '_tokens_top_norm_sent.txt', 'w+')
+    o4 = open(odir + '/' + pre + '_tokens_top_norm_sent_m10_new_top.txt', 'w+')
+    o5 = open(odir + '/' + pre + '_tokens_top_norm_sent_m50_new_top.txt', 'w+')
+    if rgi_map:
+        header = (
+            'ID\tShap_token_ID\tShap_Feature\tShap_AMR_Gene_Family\t'
+            'Important_token\tFeature\tAMR_Gene_Family\tAttention_weight\n'
+        )
+    else:
+        header = (
+            'ID\tShap_token_ID\tShap_Feature\tImportant_token\tFeature\t'
+            'Attention_weight\n'
+        )
+    for fh in (o, o2, o3, o4, o5):
+        fh.write(header)
+    c = 1
+    c2 = 1
+    c3 = 1
+    c4 = 1
+    c5 = 1
     for s in shap_top:
-        td=dg[s]
-        tem={}
-        tem2={}
-        tem3={}
-        tem4={}
-        tem5={}
+        td = dg[s]
+        tem = {}
+        tem2 = {}
+        tem3 = {}
+        tem4 = {}
+        tem5 = {}
         for t in td:
-            tem[t]=d[s][t]['value']
-            tem2[t]=d[s][t]['value']/float(dc[t])
-            tem3[t]=dcs[s][t]
-            if float(dcn[t])>10:
-                tem4[t]=d[s][t]['value']/float(dc[t])
+            tem[t] = d[s][t]['value']
+            tem2[t] = d[s][t]['value'] / float(dc[t])
+            tem3[t] = dcs[s][t]
+            if float(dcn[t]) > 10:
+                tem4[t] = d[s][t]['value'] / float(dc[t])
             else:
-                tem4[t]=0
-            if float(dcn[t])>50:
-                tem5[t]=d[s][t]['value']/float(dc[t])
+                tem4[t] = 0
+            if float(dcn[t]) > 50:
+                tem5[t] = d[s][t]['value'] / float(dc[t])
             else:
-                tem5[t]=0
-        res=sorted(tem.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
+                tem5[t] = 0
+        res = sorted(tem.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
+        shap_feat = utils.token_to_feature(s, map_dict)
+        shap_amr = rgi_map.get(shap_feat, 'NA') if rgi_map else 'NA'
         for r in res[:10]:
-            o.write(str(c)+'\t'+str(s)+'\t'+str(r[0])+'\t'+str(r[1])+'\n')
-            c+=1
-        res2=sorted(tem2.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
-        
-        for r in res2[:10]:
-            o2.write(str(c2)+'\t'+str(s)+'\t'+str(r[0])+'\t'+str(r[1])+'\n')
-            c2+=1
+            feat = utils.token_to_feature(r[0], map_dict)
+            amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
+            if rgi_map:
+                o.write(
+                    f"{c}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o.write(
+                    f"{c}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
+            c += 1
+        res2 = sorted(tem2.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
 
-        res3=sorted(tem3.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
+        for r in res2[:10]:
+            feat = utils.token_to_feature(r[0], map_dict)
+            amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
+            if rgi_map:
+                o2.write(
+                    f"{c2}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o2.write(
+                    f"{c2}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
+            c2 += 1
+
+        res3 = sorted(tem3.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
         for r in res3[:10]:
-            o3.write(str(c3)+'\t'+str(s)+'\t'+str(r[0])+'\t'+str(r[1])+'\n')
-            c3+=1
-        res4=sorted(tem4.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
+            feat = utils.token_to_feature(r[0], map_dict)
+            amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
+            if rgi_map:
+                o3.write(
+                    f"{c3}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o3.write(
+                    f"{c3}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
+            c3 += 1
+        res4 = sorted(tem4.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
         for r in res4[:10]:
-            o4.write(str(c4)+'\t'+str(s)+'\t'+str(r[0])+'\t'+str(r[1])+'\n')
-            c4+=1
-        res5=sorted(tem5.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
+            feat = utils.token_to_feature(r[0], map_dict)
+            amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
+            if rgi_map:
+                o4.write(
+                    f"{c4}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o4.write(
+                    f"{c4}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
+            c4 += 1
+        res5 = sorted(tem5.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
         for r in res5[:10]:
-            o5.write(str(c5)+'\t'+str(s)+'\t'+str(r[0])+'\t'+str(r[1])+'\n')
-            c5+=1
+            feat = utils.token_to_feature(r[0], map_dict)
+            amr = rgi_map.get(feat, 'NA') if rgi_map else 'NA'
+            if rgi_map:
+                o5.write(
+                    f"{c5}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o5.write(
+                    f"{c5}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
+            c5 += 1
 
     
 

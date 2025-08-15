@@ -8,6 +8,7 @@ StrainAMR is a learning-based framework for predicting antimicrobial resistance 
 - **Biologically interpretable feature discovery** using attention weights and SHAP interaction values
 - **Parallel genome processing** with configurable thread count
 - **Token-to-feature mapping** to translate model inputs back to genes, k‑mers and SNVs
+- **RGI-informed SNV annotation** providing AMR gene family context in SHAP outputs
 
 ## Installation (Linux/Ubuntu)
 
@@ -93,6 +94,19 @@ sh batch_train_3fold_exp.sh
 | `-t`, `--threads` | `1` | Number of parallel worker processes |
 | `-o`, `--outdir` | `StrainAMR_res` | Output directory for generated features |
 
+### `StrainAMR_build_test.py`
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `-i`, `--input_file` | required | Directory containing test genome FASTA files |
+| `-l`, `--label_file` | required | Path to phenotype label file for the test data |
+| `-d`, `--drug` | required | Drug name to model; must match training data |
+| `-p`, `--pc` | `0` | Skip protein-cluster token generation when set to `1` |
+| `-s`, `--snv` | `0` | Skip SNV token generation when set to `1` |
+| `-k`, `--kmer` | `0` | Skip k-mer token generation when set to `1` |
+| `-t`, `--threads` | `1` | Number of parallel worker processes |
+| `-o`, `--outdir` | required | Output directory; should match training output directory |
+
 ### `StrainAMR_model_train.py`
 
 | Flag | Default | Description |
@@ -116,10 +130,10 @@ sh batch_train_3fold_exp.sh
 ## Output
 
 - **Feature extraction** (`StrainAMR_build_train.py` / `StrainAMR_build_test.py`)
-  - Token files such as `strains_*_sentence_fs.txt`, `strains_*_pc_token_fs.txt`, `strains_*_kmer_token.txt`
-  - Mapping files (`node_token_match.txt`, `kmer_token_id.txt`) linking token IDs to genomic features
-  - SHAP-filtered feature lists (`*_shap_filter.txt`)
-  - `shap/` – SHAP value tables with token IDs mapped to genes or SNV positions
+    - Token files such as `strains_*_sentence_fs.txt`, `strains_*_pc_token_fs.txt`, `strains_*_kmer_token.txt`
+    - Mapping files (`node_token_match.txt`, `kmer_token_id.txt`) linking token IDs to genomic features
+    - SHAP-filtered feature lists (`*_shap_filter.txt`)
+    - `shap/` – SHAP value tables with token IDs mapped to genes or SNV positions, including AMR gene family annotations for SNV features
 - **Model training** (`StrainAMR_model_train.py`)
   - Results are grouped into subfolders within the specified `--outdir`
     - `models/` – checkpoints such as `best_model_f1_score.pt`
@@ -134,8 +148,9 @@ sh batch_train_3fold_exp.sh
 
 ## New Features
 
-- `StrainAMR_build_train.py` accepts `--threads` to process genomes in parallel
+- `StrainAMR_build_train.py` and `StrainAMR_build_test.py` accept `--threads` to process genomes in parallel
 - Model training computes SHAP interaction values and maps token IDs back to genomic features for improved interpretability
+- SNV SHAP tables and attention-token reports include AMR gene family annotations derived from RGI outputs
 
 ## Citation
 
