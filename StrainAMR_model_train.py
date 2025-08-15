@@ -4,6 +4,7 @@ import sys
 import argparse
 import shutil
 import numpy as np
+
 from library import (
     Transformer_without_pos_multimodal_add_attn,
     analyze_attention_matrix_network_optimize_iterate_shap,
@@ -12,6 +13,7 @@ from library import (
     analyze_attention_matrix_network_optimize_iterate_shap_top,
     shap_feature_select_withcls,
 )
+
 import torch
 from torch.nn import functional as F
 from torch import optim,nn
@@ -624,6 +626,7 @@ def main():
     pair_pc = os.path.join(shap_dir, 'strains_train_pc_interaction.txt')
     pair_snv = os.path.join(shap_dir, 'strains_train_snv_interaction.txt')
     pair_kmer = os.path.join(shap_dir, 'strains_train_kmer_interaction.txt')
+
     shap_feature_select_withcls.shap_interaction_select(
         indir + '/strains_train_pc_token_fs.txt',
         pair_pc,
@@ -650,6 +653,7 @@ def main():
                 os.path.join(indir, 'shap', 'strains_train_pc_token_fs_shap.txt'),
                 pair_pc,
                 map_files=[indir + '/pc_matches.txt'],
+
             )
         if fused=='snv':
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
@@ -661,6 +665,7 @@ def main():
                 pair_snv,
                 map_files=[indir + '/node_token_match.txt'],
                 rgi_dir=os.path.join(indir, 'rgi_train'),
+
             )
 
         if fused=='kmer':
@@ -712,6 +717,7 @@ def main():
             os.path.join(indir, 'shap', 'strains_train_pc_token_fs_shap.txt'),
             pair_pc,
             map_files=[indir + '/pc_matches.txt'],
+
         )
         analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
             train_at1,
@@ -722,6 +728,7 @@ def main():
             pair_snv,
             map_files=[indir + '/node_token_match.txt'],
             rgi_dir=os.path.join(indir, 'rgi_train'),
+
         )
         analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
             train_at3,
@@ -751,6 +758,7 @@ def main():
                 pair_snv,
                 map_files=[indir + '/node_token_match.txt'],
                 rgi_dir=os.path.join(indir, 'rgi_train'),
+
             )
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
                 test_at3,
@@ -760,6 +768,7 @@ def main():
                 os.path.join(indir, 'shap', 'strains_train_kmer_token_shap.txt'),
                 pair_kmer,
                 map_files=[indir + '/kmer_token_id.txt'],
+
             )
 
 
