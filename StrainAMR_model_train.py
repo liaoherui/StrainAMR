@@ -4,6 +4,7 @@ import sys
 import argparse
 import shutil
 import numpy as np
+
 from library import (
     Transformer_without_pos_multimodal_add_attn,
     analyze_attention_matrix_network_optimize_iterate_shap,
@@ -12,6 +13,7 @@ from library import (
     analyze_attention_matrix_network_optimize_iterate_shap_top,
     shap_feature_select_withcls,
 )
+
 import torch
 from torch.nn import functional as F
 from torch import optim,nn
@@ -624,11 +626,13 @@ def main():
     pair_pc = os.path.join(shap_dir, 'strains_train_pc_interaction.txt')
     pair_snv = os.path.join(shap_dir, 'strains_train_snv_interaction.txt')
     pair_kmer = os.path.join(shap_dir, 'strains_train_kmer_interaction.txt')
+
     map_files_all = [
         os.path.join(indir, 'node_token_match.txt'),
         os.path.join(indir, 'pc_matches.txt'),
         os.path.join(indir, 'kmer_token_id.txt'),
     ]
+
     shap_feature_select_withcls.shap_interaction_select(
         indir + '/strains_train_pc_token_fs.txt',
         pair_pc,

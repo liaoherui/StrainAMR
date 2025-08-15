@@ -445,11 +445,13 @@ def main():
                 pair_kmer,
                 map_files=[os.path.join(indir, 'kmer_token_id.txt')],
             )
+
             map_files_all = [
                 os.path.join(indir, 'node_token_match.txt'),
                 os.path.join(indir, 'pc_matches.txt'),
                 os.path.join(indir, 'kmer_token_id.txt'),
             ]
+
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
                 test_at2,
                 pc_file,
@@ -469,6 +471,7 @@ def main():
                 pair_snv,
                 map_files_all,
                 rgi_dir=os.path.join(indir, 'rgi_train'),
+
             )
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
                 test_at3,
