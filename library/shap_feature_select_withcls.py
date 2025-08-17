@@ -255,7 +255,7 @@ def shap_select(infile, ofile, mapping_files=None, rgi_dir=None):
     #print(CRC_kmeans_df.head(197))
     #exit()
     plot_cluster(CRC_cluster_df=CRC_kmeans_df,n_cluster=n_clust,figsize=(10,10),title='clusters',savefig=True,output_path=based+'/'+pre+'_kmeans.png')
-    if CRC_kmeans_df.shape[1]>2:
+    if CRC_kmeans_df.shape[0]>2:
         plot_elbow_method(CRC_cluster_df=CRC_kmeans_df,savefig=True,output_path=based+'/'+pre+'_elbow.png')
     
     nrows, ncols= 1, n_clust
