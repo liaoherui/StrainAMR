@@ -63,9 +63,9 @@ def convert2arr(infile):
 
 def regenerate(infile,ofile,arrs):
     f=open(infile,'r')
-    o=open(ofile,'w+')
+    #o=open(ofile,'w+')
     line=f.readline()
-    o.write(line)
+    #o.write(line)
     sid=0
     td={}
     while True:
@@ -73,7 +73,7 @@ def regenerate(infile,ofile,arrs):
         if not line:break
         ele=line.split('\t')
         tk=re.split(',',ele[-1])
-        o.write(ele[0]+'\t'+ele[1]+'\t')
+        #o.write(ele[0]+'\t'+ele[1]+'\t')
         c=0
         sv=arrs[sid]
         ds={}
@@ -88,7 +88,7 @@ def regenerate(infile,ofile,arrs):
         #ttem=np.array(tem)
         #arr = np.delete(ttem, np.where(ttem == 0))
         #o.write(str(len(arr))+'\t')
-        o.write(str(len(tem))+'\t'+','.join(tem)+'\n')
+        #o.write(str(len(tem))+'\t'+','.join(tem)+'\n')
         sid+=1
                         
     return td
