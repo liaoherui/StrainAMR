@@ -356,7 +356,7 @@ def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1):
         ele=line.split()
         #print(ele)
         #exit()
-        ele[0]=re.split('\.',ele[0])[0]
+        #ele[0]=re.split('\.',ele[0])[0]
         x.append(ele[0])
         y.append(ele[1])
     x=np.array(x)
