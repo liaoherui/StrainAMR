@@ -322,8 +322,8 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1):
     dr={}
     val=[]
     for filename in os.listdir(intest):
-        pre=re.split('\.',filename)[0]
-        #print(filename)
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         #print(pre)
         #exit()
         dr[pre]=intest+'/'+filename
