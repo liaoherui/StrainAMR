@@ -325,8 +325,8 @@ def scan_length(odir):
 def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1):
     dr={}
     for filename in os.listdir(ingenome):
-        pre=re.split('\.',filename)[0]
-        #print(filename)
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         #print(pre)
         #exit()
         dr[pre]=ingenome+'/'+filename
