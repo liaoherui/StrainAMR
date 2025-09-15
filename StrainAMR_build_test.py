@@ -113,7 +113,7 @@ def run_cdhit(pval,work_dir):
 def output_pc_token_file(d,pdir,label2,ofile):
     dr={} # Strain prefix -> Tokens string
     for filename in os.listdir(pdir):
-        pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         if pre not in dr:
             dr[pre]=[]
         f=open(pdir+'/'+filename,'r')
@@ -218,14 +218,14 @@ def run_ps(intest,label,label2,drug,work_dir):
     dval={}
     '''
     for filename in os.listdir(ingenome):
-        pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         if pre in train:
             dtrain[pre]=ingenome+'/'+filename
         elif pre in val:
             dval[pre]=ingenome+'/'+filename
     '''
     for filename in os.listdir(intest):
-        pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         #if pre in val:
         dval[pre]=intest+'/'+filename
     dl={}
