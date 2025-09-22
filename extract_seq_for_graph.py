@@ -5,7 +5,8 @@ def extract(arg_dir,refdir,odir):
     d={}
     dt={}
     for filename in os.listdir(arg_dir):
-        pre=re.split('\.',filename)[0]
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         if not re.search('txt',filename):continue
         f=open(arg_dir+'/'+filename,'r')
         line=f.readline()
@@ -34,7 +35,8 @@ def extract(arg_dir,refdir,odir):
     dn={}
     for filename in os.listdir(refdir):
         if re.search('fai',filename):continue
-        pre=re.split('\.',filename)[0]
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         f=open(refdir+'/'+filename,'r')
         while True:
             line=f.readline().strip()
