@@ -6,7 +6,8 @@ import multiprocessing
 def _graph_worker(args):
     filename, infa, odir = args
     proc = multiprocessing.current_process()
-    pre=re.split('\.',filename)[0]
+    #pre=re.split('\.',filename)[0]
+    pre=os.path.splitext(filename)[0]
     print(f"[Graph] start {pre} -- {proc.name}", flush=True)
     paf = os.path.join(odir, f"{pre}.paf")
     os.system('minimap2 -cx asm20 -X -t 8 '+infa+'/'+filename+' '+infa+'/'+filename+'  > '+paf)
