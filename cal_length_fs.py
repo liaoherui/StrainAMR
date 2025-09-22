@@ -198,7 +198,8 @@ def run_ps(train,val,ingenome,label,drug,work_dir):
     dtrain={} # Pre -> Genome dir
     dval={}
     for filename in os.listdir(ingenome):
-        pre=re.split('\.',filename)[0]
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         if pre in train:
             dtrain[pre]=ingenome+'/'+filename
         elif pre in val:
@@ -284,7 +285,8 @@ def scan_length_fs_shap(odir):
 def run(ingenome,label,odir,drug,mfile):
     dr={}
     for filename in os.listdir(ingenome):
-        pre=re.split('\.',filename)[0]
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         #print(filename)
         #print(pre)
         #exit()
