@@ -93,7 +93,8 @@ def run_cdhit(ptrain,pval,work_dir):
 def output_pc_token_file(d,pdir,label,ofile,idx):
     dr={} # Strain prefix -> Tokens string
     for filename in os.listdir(pdir):
-        pre=re.split('\.',filename)[0]
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         if pre not in dr:
             dr[pre]=[]
         f=open(pdir+'/'+filename,'r')
