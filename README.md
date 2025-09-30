@@ -1,6 +1,6 @@
 # StrainAMR
 
-StrainAMR is a learning-based framework for predicting antimicrobial resistance (AMR) from bacterial genomes while exposing the genetic features that drive resistance. The toolkit combines k‑mers, single nucleotide variants (SNVs) and protein clusters to build an interpretable classifier and highlight meaningful feature pairs through attention and SHAP interaction scores.
+StrainAMR is a learning-based framework for predicting antimicrobial resistance (AMR) from bacterial genomes while exposing the genetic features that drive resistance. The toolkit combines k‑mers, single nucleotide variants (SNVs) and protein clusters to build an interpretable multi-modal transformer classifier and highlight meaningful feature pairs through attention and SHAP interaction scores.
 
 ## Key Capabilities
 
