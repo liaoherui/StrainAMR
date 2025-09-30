@@ -156,5 +156,5 @@ sh batch_train_3fold_exp.sh
 
 If you use StrainAMR in your research, please cite:
 
-> Liao et al. *StrainAMR: ...* (2024)
+> Liao et al. *StrainAMR: ...* (2025)
 
