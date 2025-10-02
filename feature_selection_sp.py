@@ -28,7 +28,7 @@ def scan_token(infile,ofile,d):
             o.write(ele[0]+'\t'+ele[1]+'\t'+str(len(tem))+'\t'+','.join(tem)+'\n')
     
 
-def sef(infile,ofile,ofile2):
+def sef(infile,ofile,ofile2,max_features=None):
     f=open(infile,'r')
     line=f.readline()
     d={} # strain -> token_id -> frequency
@@ -83,6 +83,8 @@ def sef(infile,ofile,ofile2):
         #c+=1
         #exit()
     res=sorted(dr.items(), key = lambda kv:(kv[1], kv[0]))
+    if max_features is not None and max_features > 0:
+        res=res[:max_features]
     dused={}
     for r in res:
         o.write(str(c)+'\t'+di[r[0]])
