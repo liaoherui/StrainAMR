@@ -322,7 +322,9 @@ def scan_length(odir):
     
 
 
-def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=None):
+
+def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,sentence_limit=None):
+
     dr={}
     for filename in os.listdir(ingenome):
         #pre=re.split('\.',filename)[0]
@@ -438,13 +440,15 @@ def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit
             work_dir+'/strains_train_sentence.txt',
             work_dir+'/feature_remain_graph.txt',
             work_dir+'/strains_train_sentence_fs.txt',
-            feature_limit
+            sentence_limit,
+            sentence_limit
         )
         sef(
             work_dir+'/strains_train_pc_token.txt',
             work_dir+'/feature_remain_pc.txt',
             work_dir+'/strains_train_pc_token_fs.txt',
-            feature_limit
+            sentence_limit,
+            sentence_limit
         )
 
         #c+=1
@@ -487,9 +491,11 @@ def main():
     parser.add_argument('-t','--threads',dest='threads',type=int,help="Number of parallel processes. (Default:1)",default=1)
     parser.add_argument(
         '--feature-limit',
-        dest='feature_limit',
+        '--sentence-limit',
+        dest='sentence_limit',
         type=int,
-        help="Maximum number of features to keep in feature_remain files (default: keep all).",
+        help="Maximum number of features to keep and maximum tokens per strain after selection (default: keep all).",
+
         default=None
     )
 
@@ -511,10 +517,12 @@ def main():
 
     #run('/computenodes/node35/team3/herui/AMR_data/Phenotype_Seeker_data/Ref_Genome','cdi_label.txt','Cdi_3fold','azithromycin','drug_to_class.txt')
     threads=args.threads
-    feature_limit=args.feature_limit
-    if feature_limit is not None and feature_limit <= 0:
-        feature_limit=None
-    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile,threads,feature_limit)
+
+    sentence_limit=args.sentence_limit
+    if sentence_limit is not None and sentence_limit <= 0:
+        sentence_limit=None
+    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile,threads,sentence_limit)
+
 
 if __name__=="__main__":
     sys.exit(main())
