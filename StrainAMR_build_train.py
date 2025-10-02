@@ -322,7 +322,9 @@ def scan_length(odir):
     
 
 
+
 def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,sentence_limit=None):
+
     dr={}
     for filename in os.listdir(ingenome):
         #pre=re.split('\.',filename)[0]
@@ -493,6 +495,7 @@ def main():
         dest='sentence_limit',
         type=int,
         help="Maximum number of features to keep and maximum tokens per strain after selection (default: keep all).",
+
         default=None
     )
 
@@ -514,10 +517,12 @@ def main():
 
     #run('/computenodes/node35/team3/herui/AMR_data/Phenotype_Seeker_data/Ref_Genome','cdi_label.txt','Cdi_3fold','azithromycin','drug_to_class.txt')
     threads=args.threads
+
     sentence_limit=args.sentence_limit
     if sentence_limit is not None and sentence_limit <= 0:
         sentence_limit=None
     run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile,threads,sentence_limit)
+
 
 if __name__=="__main__":
     sys.exit(main())
