@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.feature_selection import chi2
 
 
-def scan_token(infile,ofile,d):
+def scan_token(infile,ofile,d,token_priority=None,max_tokens=None):
     o=open(ofile,'w+')
     f=open(infile,'r')
     line=f.readline().strip()
@@ -18,19 +18,30 @@ def scan_token(infile,ofile,d):
             o.write(line+'\n')
             continue
         tem=[]
-        for t in tk:
+        for idx,t in enumerate(tk):
             if t=='0':
-                tem.append(t)
                 continue
             if t in d:
-                tem.append(t)
+                tem.append((idx,t))
         if len(tem)==0:
             o.write(ele[0]+'\t'+ele[1]+'\t'+str(len(tem))+'\t0\n')
-        else:
-            o.write(ele[0]+'\t'+ele[1]+'\t'+str(len(tem))+'\t'+','.join(tem)+'\n')
+            continue
+        if max_tokens is not None and max_tokens>0:
+            decorated=[]
+            default_rank=len(token_priority) if token_priority else 0
+            for original_idx,t in tem:
+                rank=default_rank+original_idx
+                if token_priority and t in token_priority:
+                    rank=token_priority[t]
+                decorated.append((rank,original_idx,t))
+            decorated.sort()
+            tem=[(orig_idx,tok) for _,orig_idx,tok in decorated[:max_tokens]]
+            tem.sort(key=lambda x:(token_priority[x[1]] if token_priority and x[1] in token_priority else len(token_priority) if token_priority else x[0],x[0]))
+        tokens=[t for _,t in tem]
+        o.write(ele[0]+'\t'+ele[1]+'\t'+str(len(tokens))+'\t'+','.join(tokens)+'\n')
     
 
-def sef_test(infile2,infile,ofile):
+def sef_test(infile2,infile,ofile,max_tokens_per_sentence=None):
     '''
     f=open(infile,'r')
     line=f.readline()
@@ -85,6 +96,7 @@ def sef_test(infile2,infile,ofile):
     res=sorted(dr.items(), key = lambda kv:(kv[1], kv[0]))
     '''
     dused={}
+    ordered_features=[]
 
     f=open(infile,'r')
     line=f.readline()
@@ -92,9 +104,15 @@ def sef_test(infile2,infile,ofile):
         line=f.readline().strip()
         if not line:break
         ele=line.split('\t')
-        dused[str(ele[1])]=''
+        feature_id=str(ele[1])
+        dused[feature_id]=''
+        ordered_features.append(feature_id)
 
-    scan_token(infile2,ofile,dused)
+    token_priority={}
+    for idx,token in enumerate(ordered_features):
+        token_priority[token]=idx
+
+    scan_token(infile2,ofile,dused,token_priority if token_priority else None,max_tokens_per_sentence)
     '''
     o2=open(ofile2,'w+')
     f2=open(infile,'r')
