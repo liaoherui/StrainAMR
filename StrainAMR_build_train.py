@@ -322,7 +322,7 @@ def scan_length(odir):
     
 
 
-def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1):
+def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=None,sentence_limit=None):
     dr={}
     for filename in os.listdir(ingenome):
         #pre=re.split('\.',filename)[0]
@@ -434,8 +434,20 @@ def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1):
         if not kmer_c==1:
             run_ps(train,ingenome,label,drug,work_dir)
     
-        sef(work_dir+'/strains_train_sentence.txt',work_dir+'/feature_remain_graph.txt',work_dir+'/strains_train_sentence_fs.txt')
-        sef(work_dir+'/strains_train_pc_token.txt',work_dir+'/feature_remain_pc.txt',work_dir+'/strains_train_pc_token_fs.txt')
+        sef(
+            work_dir+'/strains_train_sentence.txt',
+            work_dir+'/feature_remain_graph.txt',
+            work_dir+'/strains_train_sentence_fs.txt',
+            feature_limit,
+            sentence_limit
+        )
+        sef(
+            work_dir+'/strains_train_pc_token.txt',
+            work_dir+'/feature_remain_pc.txt',
+            work_dir+'/strains_train_pc_token_fs.txt',
+            feature_limit,
+            sentence_limit
+        )
 
         #c+=1
     
@@ -475,6 +487,20 @@ def main():
     parser.add_argument('-s','--snv',dest='close_snv',type=int,help="If set to 1, then will skip snv tokens generation step. (Default: 0)",default=0)
     parser.add_argument('-k','--kmer',dest='close_kmer',type=int,help="If set to 1, then will skip k-mer tokens generation step. (Default:0)",default=0)
     parser.add_argument('-t','--threads',dest='threads',type=int,help="Number of parallel processes. (Default:1)",default=1)
+    parser.add_argument(
+        '--feature-limit',
+        dest='feature_limit',
+        type=int,
+        help="Maximum number of features to keep in feature_remain files (default: keep all).",
+        default=None
+    )
+    parser.add_argument(
+        '--sentence-limit',
+        dest='sentence_limit',
+        type=int,
+        help="Maximum number of tokens per strain in *_sentence_fs.txt outputs (default: keep all).",
+        default=None
+    )
 
     #parser.add_argument('-m','--mfile',dest='map_file',type=str,help="The directory of the mapping file about the drug and its class.")
     parser.add_argument('-o','--outdir',dest='outdir',type=str,help="Output directory of results. (Default: StrainAMR_res)")
@@ -494,7 +520,13 @@ def main():
 
     #run('/computenodes/node35/team3/herui/AMR_data/Phenotype_Seeker_data/Ref_Genome','cdi_label.txt','Cdi_3fold','azithromycin','drug_to_class.txt')
     threads=args.threads
-    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile,threads)
+    feature_limit=args.feature_limit
+    if feature_limit is not None and feature_limit <= 0:
+        feature_limit=None
+    sentence_limit=args.sentence_limit
+    if sentence_limit is not None and sentence_limit <= 0:
+        sentence_limit=None
+    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile,threads,feature_limit,sentence_limit)
 
 if __name__=="__main__":
     sys.exit(main())

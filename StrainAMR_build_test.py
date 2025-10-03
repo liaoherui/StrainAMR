@@ -315,7 +315,7 @@ def scan_length(odir):
 
 
 #def run(ingenome,label,odir,drug,mfile,intest,label2):
-def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1):
+def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=None,sentence_limit=None):
     label=odir+'/train_label.txt'
     shap_dir = odir + '/shap'
     build_dir(shap_dir)
@@ -420,12 +420,40 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1):
         
         #train=x[train_idx]
         #val=x[val_idx]
-        sef_test(work_dir+'/strains_test_sentence.txt',work_dir+'/feature_remain_graph.txt',work_dir+'/strains_test_sentence_fs.txt')
-        sef_test(work_dir+'/strains_test_pc_token.txt',work_dir+'/feature_remain_pc.txt',work_dir+'/strains_test_pc_token_fs.txt')
+        sef_test(
+            work_dir+'/strains_test_sentence.txt',
+            work_dir+'/feature_remain_graph.txt',
+            work_dir+'/strains_test_sentence_fs.txt',
+            feature_limit,
+            sentence_limit
+        )
+        sef_test(
+            work_dir+'/strains_test_pc_token.txt',
+            work_dir+'/feature_remain_pc.txt',
+            work_dir+'/strains_test_pc_token_fs.txt',
+            feature_limit,
+            sentence_limit
+        )
         ### For shap
-        sef_test(work_dir+'/strains_test_sentence_fs.txt',shap_dir+'/strains_train_sentence_fs_shap_rmf.txt',shap_dir+'/strains_test_sentence_fs_shap_filter.txt')
-        sef_test(work_dir+'/strains_test_pc_token_fs.txt',shap_dir+'/strains_train_pc_token_fs_shap_rmf.txt',shap_dir+'/strains_test_pc_token_fs_shap_filter.txt')
-        sef_test(work_dir+'/strains_test_kmer_token.txt',shap_dir+'/strains_train_kmer_token_shap_rmf.txt',shap_dir+'/strains_test_kmer_token_shap_filter.txt')
+        sef_test(
+            work_dir+'/strains_test_sentence_fs.txt',
+            shap_dir+'/strains_train_sentence_fs_shap_rmf.txt',
+            shap_dir+'/strains_test_sentence_fs_shap_filter.txt',
+            None,
+            sentence_limit
+        )
+        sef_test(
+            work_dir+'/strains_test_pc_token_fs.txt',
+            shap_dir+'/strains_train_pc_token_fs_shap_rmf.txt',
+            shap_dir+'/strains_test_pc_token_fs_shap_filter.txt',
+            None,
+            sentence_limit
+        )
+        sef_test(
+            work_dir+'/strains_test_kmer_token.txt',
+            shap_dir+'/strains_train_kmer_token_shap_rmf.txt',
+            shap_dir+'/strains_test_kmer_token_shap_filter.txt'
+        )
 
         #c+=1
     scan_length(odir)
@@ -445,6 +473,20 @@ def main():
     parser.add_argument('-k','--kmer',dest='close_kmer',type=int,help="If set to 1, then will skip k-mer tokens generation step. (Default:0)",default=0)
     parser.add_argument('-o','--outdir',dest='outdir',type=str,help="Output directory of results. (Note: The output directory of your input test data must match the out directory of your training data.)")
     parser.add_argument('-t','--threads',dest='threads',type=int,help="Number of parallel processes. (Default:1)",default=1)
+    parser.add_argument(
+        '--feature-limit',
+        dest='feature_limit',
+        type=int,
+        help="Maximum number of features to keep when filtering with feature_remain files (default: keep all).",
+        default=None
+    )
+    parser.add_argument(
+        '--sentence-limit',
+        dest='sentence_limit',
+        type=int,
+        help="Maximum number of tokens per strain in *_sentence_fs.txt outputs (default: keep all).",
+        default=None
+    )
     args=parser.parse_args()
     infile=args.input_file
     lab_file=args.lab_file
@@ -458,7 +500,13 @@ def main():
     if not out:
         print('Please provide the output directoy that matches the out directory of your training data!')
         exit()
-    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile,threads)
+    feature_limit=args.feature_limit
+    if feature_limit is not None and feature_limit <= 0:
+        feature_limit=None
+    sentence_limit=args.sentence_limit
+    if sentence_limit is not None and sentence_limit <= 0:
+        sentence_limit=None
+    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile,threads,feature_limit,sentence_limit)
 
 if __name__=="__main__":
     sys.exit(main())

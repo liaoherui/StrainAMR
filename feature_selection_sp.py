@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.feature_selection import chi2
 
 
-def scan_token(infile,ofile,d):
+def scan_token(infile,ofile,d,token_priority=None,max_tokens=None):
     o=open(ofile,'w+')
     f=open(infile,'r')
     line=f.readline().strip()
@@ -18,17 +18,42 @@ def scan_token(infile,ofile,d):
             o.write(line+'\n')
             continue
         tem=[]
-        for t in tk:
-            if t=='0':continue
+        for idx,t in enumerate(tk):
+            if t=='0':
+                continue
             if t in d:
-                tem.append(t)
-        if len(tem)==0:
-            o.write(ele[0]+'\t'+ele[1]+'\t'+str(len(tem))+'\t0\n')
+                tem.append((idx,t))
+        selected=tem
+        if max_tokens is not None and max_tokens>0 and len(tem)>max_tokens:
+            decorated=[]
+            default_rank=len(token_priority) if token_priority else 0
+            for original_idx,t in tem:
+                rank=default_rank+original_idx
+                if token_priority and t in token_priority:
+                    rank=token_priority[t]
+                decorated.append((rank,original_idx,t))
+            decorated.sort()
+            selected=[(orig_idx,tok) for _,orig_idx,tok in decorated[:max_tokens]]
+        if not selected:
+            kept_indices=set()
         else:
-            o.write(ele[0]+'\t'+ele[1]+'\t'+str(len(tem))+'\t'+','.join(tem)+'\n')
+            selected.sort(key=lambda x:x[0])
+            kept_indices={idx for idx,_ in selected}
+        tokens_out=[]
+        for idx,t in enumerate(tk):
+            if t=='0':
+                if not tokens_out or tokens_out[-1] != '0':
+                    tokens_out.append('0')
+                continue
+            if idx in kept_indices:
+                tokens_out.append(t)
+        if len(tokens_out)==0:
+            tokens_out=['0']
+        non_zero_count=sum(1 for t in tokens_out if t!='0')
+        o.write(ele[0]+'\t'+ele[1]+'\t'+str(non_zero_count)+'\t'+','.join(tokens_out)+'\n')
     
 
-def sef(infile,ofile,ofile2):
+def sef(infile,ofile,ofile2,max_features=None,max_tokens_per_sentence=None):
     f=open(infile,'r')
     line=f.readline()
     d={} # strain -> token_id -> frequency
@@ -83,15 +108,23 @@ def sef(infile,ofile,ofile2):
         #c+=1
         #exit()
     res=sorted(dr.items(), key = lambda kv:(kv[1], kv[0]))
+    if max_features is not None and max_features > 0:
+        res=res[:max_features]
     dused={}
+    ordered_features=[r[0] for r in res]
     for r in res:
         o.write(str(c)+'\t'+di[r[0]])
         dused[r[0]]=''
         c+=1
     if len(res)==0:
         dused=all_t
+        ordered_features=sorted(all_t.keys())
 
-    scan_token(infile,ofile2,dused)
+    token_priority={}
+    for idx,token in enumerate(ordered_features):
+        token_priority[token]=idx
+
+    scan_token(infile,ofile2,dused,token_priority if token_priority else None,max_tokens_per_sentence)
     '''
     o2=open(ofile2,'w+')
     f2=open(infile,'r')
