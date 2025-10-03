@@ -19,13 +19,12 @@ def scan_token(infile,ofile,d,token_priority=None,max_tokens=None):
             continue
         tem=[]
         for idx,t in enumerate(tk):
-            if t=='0':continue
+            if t=='0':
+                continue
             if t in d:
                 tem.append((idx,t))
-        if len(tem)==0:
-            o.write(ele[0]+'\t'+ele[1]+'\t'+str(len(tem))+'\t0\n')
-            continue
-        if max_tokens is not None and max_tokens>0:
+        selected=tem
+        if max_tokens is not None and max_tokens>0 and len(tem)>max_tokens:
             decorated=[]
             default_rank=len(token_priority) if token_priority else 0
             for original_idx,t in tem:
@@ -34,10 +33,24 @@ def scan_token(infile,ofile,d,token_priority=None,max_tokens=None):
                     rank=token_priority[t]
                 decorated.append((rank,original_idx,t))
             decorated.sort()
-            tem=[(orig_idx,tok) for _,orig_idx,tok in decorated[:max_tokens]]
-            tem.sort(key=lambda x:(token_priority[x[1]] if token_priority and x[1] in token_priority else len(token_priority) if token_priority else x[0],x[0]))
-        tokens=[t for _,t in tem]
-        o.write(ele[0]+'\t'+ele[1]+'\t'+str(len(tokens))+'\t'+','.join(tokens)+'\n')
+            selected=[(orig_idx,tok) for _,orig_idx,tok in decorated[:max_tokens]]
+        if not selected:
+            kept_indices=set()
+        else:
+            selected.sort(key=lambda x:x[0])
+            kept_indices={idx for idx,_ in selected}
+        tokens_out=[]
+        for idx,t in enumerate(tk):
+            if t=='0':
+                if not tokens_out or tokens_out[-1] != '0':
+                    tokens_out.append('0')
+                continue
+            if idx in kept_indices:
+                tokens_out.append(t)
+        if len(tokens_out)==0:
+            tokens_out=['0']
+        non_zero_count=sum(1 for t in tokens_out if t!='0')
+        o.write(ele[0]+'\t'+ele[1]+'\t'+str(non_zero_count)+'\t'+','.join(tokens_out)+'\n')
     
 
 def sef(infile,ofile,ofile2,max_features=None,max_tokens_per_sentence=None):
