@@ -248,8 +248,13 @@ def cal_len(infile1):
         line=f.readline().strip()
         if not line:break
         ele=line.split('\t')
-        if int(ele[-2])>ms:
-            ms=int(ele[-2])
+        tokens_field = ele[-1].strip() if ele else ''
+        if tokens_field:
+            token_count = len(tokens_field.split(','))
+        else:
+            token_count = 0
+        if token_count>ms:
+            ms=token_count
     '''
     f=open(infile2,'r')
     line=f.readline()
