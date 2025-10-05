@@ -9,7 +9,8 @@ def generate_fg(ingraph,refdir,ofile,mfile,label,train):
     c=1
     raw_arr=[]
     for filename in os.listdir(ingraph):
-        pre=re.split('\.',filename)[0]
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         f=open(ingraph+'/'+filename,'r')
         dtem={} # Tem node id to token id
         while True:
@@ -52,7 +53,8 @@ def generate_fg(ingraph,refdir,ofile,mfile,label,train):
     #dcc={} # strainID -> sentence length
     for filename in os.listdir(refdir):
         if re.search('fai',filename):continue
-        pre=re.split('\.',filename)[0]
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         if pre not in dt:continue
         if pre not in ds:
             ds[pre]=[]

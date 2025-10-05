@@ -10,6 +10,7 @@ import markov_clustering as mc
 from networkx.algorithms.community.centrality import girvan_newman
 from cdlib import algorithms
 import random
+import library.utils as utils
 
 def add_dc(i,dc):
     if i not in dc:
@@ -34,7 +35,7 @@ def add_dcs(s1,s2,dcs,v,shap_top):
             dcs[s2][s1]+=v
 
 
-def build_net(matrix,sentence,d1,d2,k,dg,shap_top,dc,dcs):
+def build_net(matrix, sentence, d1, d2, k, dg, shap_top, dc, dcs, pair_scores=None):
     G=nx.Graph()
     matrix_z=matrix
     for i in range(len(matrix)):
@@ -67,17 +68,20 @@ def build_net(matrix,sentence,d1,d2,k,dg,shap_top,dc,dcs):
         add_dc(s2,dc)
         add_dc(s1,dcount)
         add_dc(s2,dcount)
-        add_dcs(s1,s2,dcst,matrix_z[i[0]][i[1]],shap_top)
+        score = matrix_z[i[0]][i[1]]
+        if pair_scores:
+            score *= pair_scores.get((s1, s2), pair_scores.get((s2, s1), 1))
+        add_dcs(s1, s2, dcst, score, shap_top)
         #add_dcs(s2,dcs,matrix_z[i[0]][i[1]])
         #s1=str(s1)
         #s2=str(s2)
-        if dg.has_edge(s1,s2):
-            dg[s1][s2]['value']+=matrix_z[i[0]][i[1]]
+        if dg.has_edge(s1, s2):
+            dg[s1][s2]['value'] += score
         else:
-            dg.add_edge(s1,s2)
-            dg[s1][s2]['value']=matrix_z[i[0]][i[1]]
-            dg[s1][s2]['count']=0
-            dg[s1][s2]['weight']=0
+            dg.add_edge(s1, s2)
+            dg[s1][s2]['value'] = score
+            dg[s1][s2]['count'] = 0
+            dg[s1][s2]['weight'] = 0
         G.add_edge(s1,s2)
     for u,v in G.edges:
         dg[u][v]['count']+=1
@@ -121,18 +125,32 @@ def stat_sent_count(sentence_file):
                 lf(s,dnc)
     return dpc,dnc
 
-def check_top10_attn(odir,dg,pre,shap_top,dc,dcs,dcn):
-    d=nx.to_dict_of_dicts(dg)
-    o=open(odir+'/'+pre+'_tokens_top_raw.txt','w+')
-    o2=open(odir+'/'+pre+'_tokens_top_norm.txt','w+')
-    o3=open(odir+'/'+pre+'_tokens_top_norm_sent.txt','w+')
-    o4=open(odir+'/'+pre+'_tokens_top_norm_sent_m10_new.txt','w+')
-    o5=open(odir+'/'+pre+'_tokens_top_norm_sent_m50_new.txt','w+')
-    o.write('ID\tShap_token_ID\tImportant_token\tAttention_weight\n')
-    o2.write('ID\tShap_token_ID\tImportant_token\tAttention_weight\n')
-    o3.write('ID\tShap_token_ID\tImportant_token\tAttention_weight\n')
-    o4.write('ID\tShap_token_ID\tImportant_token\tAttention_weight\n')
-    o5.write('ID\tShap_token_ID\tImportant_token\tAttention_weight\n')
+def check_top10_attn(odir, dg, pre, shap_top, dc, dcs, dcn, map_dict=None, rgi_map=None):
+    if map_dict is None:
+        map_dict = {}
+    if rgi_map is None:
+        rgi_map = {}
+    d = nx.to_dict_of_dicts(dg)
+    o = open(odir + '/' + pre + '_tokens_top_raw.txt', 'w+')
+    o2 = open(odir + '/' + pre + '_tokens_top_norm.txt', 'w+')
+    o3 = open(odir + '/' + pre + '_tokens_top_norm_sent.txt', 'w+')
+    o4 = open(odir + '/' + pre + '_tokens_top_norm_sent_m10_new.txt', 'w+')
+    o5 = open(odir + '/' + pre + '_tokens_top_norm_sent_m50_new.txt', 'w+')
+    use_amr = bool(rgi_map) and 'graph' in pre
+    if use_amr:
+
+        header = (
+            'ID\tShap_token_ID\tShap_Feature\tShap_AMR_Gene_Family\t'
+            'Important_token\tFeature\tAMR_Gene_Family\tAttention_weight\n'
+        )
+    else:
+        header = (
+            'ID\tShap_token_ID\tShap_Feature\tImportant_token\tFeature\t'
+            'Attention_weight\n'
+        )
+
+    for fh in (o, o2, o3, o4, o5):
+        fh.write(header)
     c=1
     c2=1
     c3=1
@@ -140,48 +158,105 @@ def check_top10_attn(odir,dg,pre,shap_top,dc,dcs,dcn):
     c5=1
     for s in shap_top:
         if s not in dg:
-            print(s,' not in the attention matrix, skip!',flush=True)
+            print(s, ' not in the attention matrix, skip!', flush=True)
             continue
-        td=dg[s]
-        tem={}
-        tem2={}
-        tem3={}
-        tem4={}
-        tem5={}
+        td = dg[s]
+        tem = {}
+        tem2 = {}
+        tem3 = {}
+        tem4 = {}
+        tem5 = {}
         for t in td:
-            tem[t]=d[s][t]['value']
-            tem2[t]=d[s][t]['value']/float(dc[t])
-            tem3[t]=dcs[s][t]
-            if float(dcn[t])>10:
-                tem4[t]=d[s][t]['value']/float(dc[t])
+            tem[t] = d[s][t]['value']
+            tem2[t] = d[s][t]['value'] / float(dc[t])
+            tem3[t] = dcs[s][t]
+            if float(dcn[t]) > 10:
+                tem4[t] = d[s][t]['value'] / float(dc[t])
             else:
-                tem4[t]=0
-            if float(dcn[t])>50:
-                tem5[t]=d[s][t]['value']/float(dc[t])
+                tem4[t] = 0
+            if float(dcn[t]) > 50:
+                tem5[t] = d[s][t]['value'] / float(dc[t])
             else:
-                tem5[t]=0
-        res=sorted(tem.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
-        for r in res[:10]:
-            o.write(str(c)+'\t'+str(s)+'\t'+str(r[0])+'\t'+str(r[1])+'\n')
-            c+=1
-        res2=sorted(tem2.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
-        
-        for r in res2[:10]:
-            o2.write(str(c2)+'\t'+str(s)+'\t'+str(r[0])+'\t'+str(r[1])+'\n')
-            c2+=1
+                tem5[t] = 0
+        res = sorted(tem.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
+        shap_feat = utils.token_to_feature(s, map_dict)
 
-        res3=sorted(tem3.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
+        shap_amr = rgi_map.get(shap_feat, 'NA') if use_amr else 'NA'
+        for r in res[:10]:
+            feat = utils.token_to_feature(r[0], map_dict)
+            amr = rgi_map.get(feat, 'NA') if use_amr else 'NA'
+            if use_amr:
+
+                o.write(
+                    f"{c}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o.write(
+                    f"{c}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
+
+            c += 1
+        res2 = sorted(tem2.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
+        for r in res2[:10]:
+            feat = utils.token_to_feature(r[0], map_dict)
+
+            amr = rgi_map.get(feat, 'NA') if use_amr else 'NA'
+            if use_amr:
+                o2.write(
+                    f"{c2}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o2.write(
+                    f"{c2}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
+            c2 += 1
+
+        res3 = sorted(tem3.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
         for r in res3[:10]:
-            o3.write(str(c3)+'\t'+str(s)+'\t'+str(r[0])+'\t'+str(r[1])+'\n')
-            c3+=1
-        res4=sorted(tem4.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
+            feat = utils.token_to_feature(r[0], map_dict)
+            amr = rgi_map.get(feat, 'NA') if use_amr else 'NA'
+            if use_amr:
+                o3.write(
+                    f"{c3}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o3.write(
+                    f"{c3}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
+
+            c3 += 1
+        res4 = sorted(tem4.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
         for r in res4[:10]:
-            o4.write(str(c4)+'\t'+str(s)+'\t'+str(r[0])+'\t'+str(r[1])+'\n')
-            c4+=1
-        res5=sorted(tem5.items(), key = lambda kv:(kv[1], kv[0]),reverse=True)
+            feat = utils.token_to_feature(r[0], map_dict)
+
+            amr = rgi_map.get(feat, 'NA') if use_amr else 'NA'
+            if use_amr:
+
+                o4.write(
+                    f"{c4}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o4.write(
+                    f"{c4}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
+
+            c4 += 1
+        res5 = sorted(tem5.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
         for r in res5[:10]:
-            o5.write(str(c5)+'\t'+str(s)+'\t'+str(r[0])+'\t'+str(r[1])+'\n')
-            c5+=1
+            feat = utils.token_to_feature(r[0], map_dict)
+
+            amr = rgi_map.get(feat, 'NA') if use_amr else 'NA'
+            if use_amr:
+
+                o5.write(
+                    f"{c5}\t{s}\t{shap_feat}\t{shap_amr}\t{r[0]}\t{feat}\t{amr}\t{r[1]}\n"
+                )
+            else:
+                o5.write(
+                    f"{c5}\t{s}\t{shap_feat}\t{r[0]}\t{feat}\t{r[1]}\n"
+                )
+            c5 += 1
+
 
     
 
@@ -426,7 +501,7 @@ def scan_graphs(out,g,pre):
 
     
 
-def obtain_important_tokens(matrix,sentence_file,odir,pre,shap_top_file):
+def obtain_important_tokens(matrix, sentence_file, odir, pre, shap_top_file, shap_pair_file=None, map_files=None, rgi_dir=None):
     '''
     f=open(sentence_file,'r')
     sentence_new_file=uuid.uuid1().hex+'.txt'
@@ -453,6 +528,29 @@ def obtain_important_tokens(matrix,sentence_file,odir,pre,shap_top_file):
         shap_top[int(ele[1])]=''
         c+=1
         if c>10:break
+    pair_scores = {}
+    if shap_pair_file and os.path.exists(shap_pair_file):
+        fp2 = open(shap_pair_file, 'r')
+        header = fp2.readline().strip().split('\t')
+        hdict = {h: i for i, h in enumerate(header)}
+        t1i = hdict.get('Token_ID_1', 0)
+        t2i = hdict.get('Token_ID_2', 1)
+        si = hdict.get('Interaction', 2)
+        for line in fp2:
+            line = line.strip()
+            if not line:
+                continue
+            p = line.split('\t')
+            try:
+                t1 = int(p[t1i])
+                t2 = int(p[t2i])
+                score = float(p[si])
+            except (ValueError, IndexError):
+                continue
+            pair_scores[(t1, t2)] = score
+        fp2.close()
+    map_dict = utils.load_token_mappings(map_files)
+    rgi_map = utils.load_rgi_annotations(rgi_dir)
     #exit()
     f=open(sentence_file,'r')
     line=f.readline()
@@ -524,26 +622,30 @@ def obtain_important_tokens(matrix,sentence_file,odir,pre,shap_top_file):
             #continue
             #print(m.shape)
             if dl[c]==1:
-                build_net(m,sentence,d1,d2,k,dgp,shap_top,dpc,dpcs)
+                build_net(m, sentence, d1, d2, k, dgp, shap_top, dpc, dpcs, pair_scores)
                 #print(d1)
                 #exit()
             else:
                 #continue
-                build_net(m,sentence,d3,d4,k,dgn,shap_top,dnc,dpns)
+                build_net(m, sentence, d3, d4, k, dgn, shap_top, dnc, dpns, pair_scores)
             tc+=1
         #exit()
         c+=1
     if not os.path.exists(odir):
         os.makedirs(odir)
     #os.system('rm '+sentence_new_file)
-    filter_low_weight_edges(dgp) 
+    filter_low_weight_edges(dgp)
     filter_low_weight_edges(dgn)
-    dpc_sc,dnc_sc=stat_sent_count(sentence_file)
-    check_top10_attn(odir,dgp,pre+'_positive',shap_top,dpc,dpcs,dpc_sc)
-    check_top10_attn(odir,dgn,pre+'_negative',shap_top,dnc,dpns,dnc_sc)
-    
-    scan_graphs(odir,dgp,pre+'_positive')
-    scan_graphs(odir,dgn,pre+'_negative')
+    dpc_sc, dnc_sc = stat_sent_count(sentence_file)
+    token_dir = os.path.join(odir, 'tokens')
+    graph_dir = os.path.join(odir, 'graphs')
+    os.makedirs(token_dir, exist_ok=True)
+    os.makedirs(graph_dir, exist_ok=True)
+    check_top10_attn(token_dir, dgp, pre + '_positive', shap_top, dpc, dpcs, dpc_sc, map_dict, rgi_map)
+    check_top10_attn(token_dir, dgn, pre + '_negative', shap_top, dnc, dpns, dnc_sc, map_dict, rgi_map)
+
+    scan_graphs(graph_dir, dgp, pre+'_positive')
+    scan_graphs(graph_dir, dgn, pre+'_negative')
     #write_out(d1,d2,odir+'/important_tokens_positive_'+pre+'.txt',odir+'/important_token_pairs_positive_'+pre+'.txt')
     #write_out(d3,d4,odir+'/important_tokens_negative_'+pre+'.txt',odir+'/important_token_pairs_negative_'+pre+'.txt')
 

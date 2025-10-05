@@ -265,10 +265,25 @@ def main():
         fnum=parsef(fused)
     if not odir:
         odir='StrainAMR_fold_res'
-
-    if not os.path.exists(odir):
-        os.makedirs(odir)
-    ol=open(odir+'/train_pred_log.txt','w')
+    os.makedirs(odir, exist_ok=True)
+    models_dir = os.path.join(odir, 'models')
+    logs_dir = os.path.join(odir, 'logs')
+    analysis_dir = os.path.join(odir, 'analysis')
+    shap_dir = os.path.join(odir, 'shap')
+    for d in (models_dir, logs_dir, analysis_dir, shap_dir):
+        os.makedirs(d, exist_ok=True)
+    # copy SHAP tables generated during feature building into the training output
+    build_shap_dir = os.path.join(indir, 'shap')
+    if os.path.isdir(build_shap_dir):
+        for fname in (
+            'strains_train_sentence_fs_shap_filter.txt',
+            'strains_train_pc_token_fs_shap_filter.txt',
+            'strains_train_kmer_token_shap_filter.txt',
+        ):
+            src = os.path.join(build_shap_dir, fname)
+            if os.path.exists(src):
+                shutil.copy(src, shap_dir)
+    ol = open(os.path.join(logs_dir, 'train_pred_log.txt'), 'w')
     #lss1=765
     #lss2=536
     #lss3=1000
@@ -467,7 +482,7 @@ def main():
             print(f'Validation set || epoch no. {epoch} || Validation Loss: {valid_loss:.4f} || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',flush=True)
             print(f'Validation set || epoch no. {epoch} || Validation Loss: {valid_loss:.4f} || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',file=ol,flush=True)
             if sm==0:
-                es_out=early_stopping(valid_loss, model, odir,ol)
+                es_out = early_stopping(valid_loss, model, models_dir, ol)
                 if early_stopping.early_stop:
                     print("Early stopping!!!")
                     break
@@ -484,8 +499,8 @@ def main():
                         c+=1
         if fscore>max_f1:
             max_f1=fscore
-            torch.save(model.state_dict(), odir+"/best_model_f1_score.pt")
-            o3 = open(odir + '/output_sample_prob_val_best_f1.txt', 'w+')
+            torch.save(model.state_dict(), os.path.join(models_dir, "best_model_f1_score.pt"))
+            o3 = open(os.path.join(logs_dir, 'output_sample_prob_val_best_f1.txt'), 'w+')
             o3.write('Sample_Id\tLabel\tPred\tProb\n')
             c=0
             for e in test_label:
@@ -498,7 +513,7 @@ def main():
         if es_out:
             max_auc=roc
             if tm==0:
-                o3 = open(odir + '/output_sample_prob_auc.txt', 'w+')
+                o3 = open(os.path.join(logs_dir, 'output_sample_prob_auc.txt'), 'w+')
                 c=0
                 for e in test_label:
                     o3.write(sid_val[c]+'\t'+str(e)+'\t'+str(all_logit[c])+'\n')

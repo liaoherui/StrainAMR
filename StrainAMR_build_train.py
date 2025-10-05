@@ -20,7 +20,23 @@ def build_dir(idir):
         os.makedirs(idir)
 
 
-def run_prodigal_rgi(dr,odir):
+import multiprocessing
+
+
+def _prodigal_rgi_worker(args):
+    s, dr, gdir, ginfo, pdir, rgi = args
+    proc = multiprocessing.current_process()
+    print(f"[Prodigal/RGI] start {s} -- {proc.name}", flush=True)
+    if os.path.exists(rgi+'/'+s+'.txt') and os.path.getsize(rgi+'/'+s+'.txt') != 0:
+        print(f"[Prodigal/RGI] skip {s} -- {proc.name}", flush=True)
+        return
+    if not os.path.exists(pdir+'/'+s+'.faa') or os.path.getsize(pdir+'/'+s+'.faa') == 0:
+        os.system('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa -a '+pdir+'/'+s+'.faa')
+    os.system('rgi main --input_sequence '+gdir+'/'+s+'.fa --output_file '+rgi+'/'+s+' --local --clean  -n 10')
+    print(f"[Prodigal/RGI] done {s} -- {proc.name}", flush=True)
+
+
+def run_prodigal_rgi(dr, odir, threads=1):
     gdir=odir+'/Genes'
     ginfo=odir+'/Genes_info'
     pdir=odir+'/Proteins'
@@ -30,24 +46,13 @@ def run_prodigal_rgi(dr,odir):
     build_dir(ginfo)
     build_dir(pdir)
     build_dir(rgi)
-    for s in dr:
-        #print(s)
-        targ=['']
-        #exit()
-        if os.path.exists(rgi+'/'+s+'.txt'):
-            if not os.path.getsize(rgi+'/'+s+'.txt') == 0:continue
 
-        if not os.path.exists(pdir+'/'+s+'.faa'):
-            print('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa'+' -a '+pdir+'/'+s+'.faa')
-            os.system('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa'+' -a '+pdir+'/'+s+'.faa')
-        else:
-            if os.path.getsize(pdir+'/'+s+'.faa') == 0:
-                print('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa'+' -a '+pdir+'/'+s+'.faa')
-                os.system('prodigal -i '+dr[s]+' -o '+ginfo+'/'+s+'.genes -d '+gdir+'/'+s+'.fa'+' -a '+pdir+'/'+s+'.faa')
-        
-        print('rgi main --input_sequence '+gdir+'/'+s+'.fa --output_file '+rgi+'/'+s+' --local --clean  -n 10')
-        os.system('rgi main --input_sequence '+gdir+'/'+s+'.fa --output_file '+rgi+'/'+s+' --local --clean  -n 10')
-        #exit()
+    params = [(s, dr, gdir, ginfo, pdir, rgi) for s in dr]
+    pool = multiprocessing.Pool(processes=int(threads))
+    for p in params:
+        pool.apply_async(_prodigal_rgi_worker, (p,))
+    pool.close()
+    pool.join()
     return gdir,pdir
 
 def copy_genome(gdir,index,odir,t):
@@ -125,7 +130,7 @@ def run_cdhit(ptrain,work_dir):
 def output_pc_token_file(d,pdir,label,ofile,idx):
     dr={} # Strain prefix -> Tokens string
     for filename in os.listdir(pdir):
-        pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         if pre not in dr:
             dr[pre]=[]
         f=open(pdir+'/'+filename,'r')
@@ -231,7 +236,7 @@ def run_ps(train,ingenome,label,drug,work_dir):
     dtrain={} # Pre -> Genome dir
     #dval={}
     for filename in os.listdir(ingenome):
-        pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         if pre in train:
             dtrain[pre]=ingenome+'/'+filename
         '''
@@ -291,8 +296,13 @@ def cal_len(infile1):
         line=f.readline().strip()
         if not line:break
         ele=line.split('\t')
-        if int(ele[-2])>ms:
-            ms=int(ele[-2])
+        tokens_field = ele[-1].strip() if ele else ''
+        if tokens_field:
+            token_count = len(tokens_field.split(','))
+        else:
+            token_count = 0
+        if token_count>ms:
+            ms=token_count
     '''
     f=open(infile2,'r')
     line=f.readline()
@@ -317,17 +327,17 @@ def scan_length(odir):
     
 
 
-def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile):
+def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=None,sentence_limit=None):
     dr={}
     for filename in os.listdir(ingenome):
-        pre=re.split('\.',filename)[0]
-        #print(filename)
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         #print(pre)
         #exit()
         dr[pre]=ingenome+'/'+filename
     # Run prodigal and rgi for all input genomes
     print('Run Prodigal and RGI for all input genomes!',flush=True)
-    gdir,pdir=run_prodigal_rgi(dr,odir)
+    gdir,pdir=run_prodigal_rgi(dr,odir,threads)
     gdir=odir+'/Genes'
     pdir=odir+'/Proteins'
     #exit()
@@ -404,7 +414,7 @@ def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile):
             #extract(tem_rv,tem_gv,gv)
 
             graph=work_dir+'/GFA_train_Minimap2'
-            build(gt,graph)
+            build(gt,graph,threads)
 
             #align_res=work_dir+'/Align_val_res'
             #align(gv,graph,align_res)
@@ -429,20 +439,46 @@ def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile):
         if not kmer_c==1:
             run_ps(train,ingenome,label,drug,work_dir)
     
-        sef(work_dir+'/strains_train_sentence.txt',work_dir+'/feature_remain_graph.txt',work_dir+'/strains_train_sentence_fs.txt')
-        sef(work_dir+'/strains_train_pc_token.txt',work_dir+'/feature_remain_pc.txt',work_dir+'/strains_train_pc_token_fs.txt')
+        sef(
+            work_dir+'/strains_train_sentence.txt',
+            work_dir+'/feature_remain_graph.txt',
+            work_dir+'/strains_train_sentence_fs.txt',
+            feature_limit,
+            sentence_limit
+        )
+        sef(
+            work_dir+'/strains_train_pc_token.txt',
+            work_dir+'/feature_remain_pc.txt',
+            work_dir+'/strains_train_pc_token_fs.txt',
+            feature_limit,
+            sentence_limit
+        )
 
         #c+=1
     
-    shap_feature_select_withcls.shap_select(work_dir+'/strains_train_sentence_fs.txt',work_dir+'/strains_train_sentence_fs_shap_filter.txt')
-    shap_feature_select_withcls.shap_select(work_dir+'/strains_train_pc_token_fs.txt',work_dir+'/strains_train_pc_token_fs_shap_filter.txt')
-    #exit()
-    shap_feature_select_withcls.shap_select(work_dir+'/strains_train_kmer_token.txt',work_dir+'/strains_train_kmer_token_shap_filter.txt')
+    shap_dir = odir + '/shap'
+    build_dir(shap_dir)
+    shap_feature_select_withcls.shap_select(
+        work_dir+'/strains_train_sentence_fs.txt',
+        shap_dir+'/strains_train_sentence_fs_shap_filter.txt',
+        [work_dir+'/node_token_match.txt'],
+        rgi_dir=work_dir+'/rgi_train'
+    )
+    shap_feature_select_withcls.shap_select(
+        work_dir+'/strains_train_pc_token_fs.txt',
+        shap_dir+'/strains_train_pc_token_fs_shap_filter.txt',
+        [work_dir+'/pc_matches.txt']
+    )
+    shap_feature_select_withcls.shap_select(
+        work_dir+'/strains_train_kmer_token.txt',
+        shap_dir+'/strains_train_kmer_token_shap_filter.txt',
+        [work_dir+'/kmer_token_id.txt']
+    )
     
     #exit()
     scan_length(odir)
     scan_length_fs(odir)
-    scan_length_fs_shap(odir)
+    scan_length_fs_shap(shap_dir)
     os.system('cp '+label+' '+odir+'/train_label.txt')
         #exit()
 
@@ -455,6 +491,21 @@ def main():
     parser.add_argument('-p','--pc',dest='close_pc',type=int,help="If set to 1, then will skip pc tokens generation step. (Defaut: 0)" ,default=0)
     parser.add_argument('-s','--snv',dest='close_snv',type=int,help="If set to 1, then will skip snv tokens generation step. (Default: 0)",default=0)
     parser.add_argument('-k','--kmer',dest='close_kmer',type=int,help="If set to 1, then will skip k-mer tokens generation step. (Default:0)",default=0)
+    parser.add_argument('-t','--threads',dest='threads',type=int,help="Number of parallel processes. (Default:1)",default=1)
+    parser.add_argument(
+        '--feature-limit',
+        dest='feature_limit',
+        type=int,
+        help="Maximum number of features to keep in feature_remain files (default: keep all).",
+        default=None
+    )
+    parser.add_argument(
+        '--sentence-limit',
+        dest='sentence_limit',
+        type=int,
+        help="Maximum number of tokens per strain in *_sentence_fs.txt outputs (default: keep all).",
+        default=None
+    )
 
     #parser.add_argument('-m','--mfile',dest='map_file',type=str,help="The directory of the mapping file about the drug and its class.")
     parser.add_argument('-o','--outdir',dest='outdir',type=str,help="Output directory of results. (Default: StrainAMR_res)")
@@ -473,7 +524,14 @@ def main():
         out='StrainAMR_res'
 
     #run('/computenodes/node35/team3/herui/AMR_data/Phenotype_Seeker_data/Ref_Genome','cdi_label.txt','Cdi_3fold','azithromycin','drug_to_class.txt')
-    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile)
+    threads=args.threads
+    feature_limit=args.feature_limit
+    if feature_limit is not None and feature_limit <= 0:
+        feature_limit=None
+    sentence_limit=args.sentence_limit
+    if sentence_limit is not None and sentence_limit <= 0:
+        sentence_limit=None
+    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile,threads,feature_limit,sentence_limit)
 
 if __name__=="__main__":
     sys.exit(main())
