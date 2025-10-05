@@ -554,7 +554,7 @@ def main():
         feature_arrays,
         feature_labels,
         shap_file_map,
-        odir,
+        odir+'/analysis',
         encoder_names,
         device=device,
         batch_size=batch_size,
