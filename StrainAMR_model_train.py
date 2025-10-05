@@ -544,9 +544,9 @@ def main():
         feature_arrays.append(torch.from_numpy(x_train3))
 
     shap_file_map = {
-        'snv': indir + '/strains_train_sentence_fs_shap.txt',
-        'pc': indir + '/strains_train_pc_token_fs_shap.txt',
-        'kmer': indir + '/strains_train_kmer_token_shap.txt'
+        'snv': indir + '/shap/strains_train_sentence_fs_shap.txt',
+        'pc': indir + '/shap/strains_train_pc_token_fs_shap.txt',
+        'kmer': indir + '/shap/strains_train_kmer_token_shap.txt'
     }
 
     export_token_contributions(
