@@ -2,8 +2,10 @@ import re
 import os
 import sys
 import argparse
+from typing import List
 import numpy as np
-from library import Transformer_without_pos_multimodal_add_attn,analyze_attention_matrix_network_optimize_iterate_shap,Transformer_without_pos,Transformer_without_pos_multimodal_add_attn_only2,analyze_attention_matrix_network_optimize_iterate_shap_top
+from library import Transformer_without_pos_multimodal_add_attn,Transformer_without_pos,Transformer_without_pos_multimodal_add_attn_only2
+from library.token_contribution import export_token_contributions
 import torch
 from torch.nn import functional as F
 from torch import optim,nn
@@ -288,30 +290,42 @@ def main():
     print('Token count_type1:',tsize3)
     setup_seed(10)
     if fnum == 1:
+        encoder_names = ['encoder']
         if fused == 'pc':
             x_train1, token_size1 = x_train2, token_size2
             x_val1, token_size_val1 = x_val2, token_size_val2
             tsize1 = tsize2
             lss1 = lss2
+            feature_labels = ['pc']
         elif fused == 'kmer':
             x_train1, token_size1 = x_train3, token_size3
             x_val1, token_size_val1 = x_val3, token_size_val3
             tsize1 = tsize3
             lss1 = lss3
+            feature_labels = ['kmer']
         model = Transformer_without_pos.Transformer(src_vocab_size=tsize1, max_length=lss1, device=device, src_pad_idx=0, dropout=0.1)
+        if fused == 'snv' or fused not in {'pc', 'kmer'}:
+            feature_labels = ['snv']
     elif fnum==2:
+        encoder_names = ['encoder1', 'encoder2']
         if re.search('pc',fused) and  re.search('kmer',fused):
             x_train1, token_size1 = x_train3,  token_size3
             x_val1,  token_size_val1 = x_val3, token_size_val3
             tsize1 = tsize3
             lss1=lss3
+            feature_labels = ['kmer', 'pc']
         elif re.search('snv', fused) and re.search('kmer', fused):
             x_train2, token_size2 = x_train3,token_size3
             x_val2,token_size_val2 = x_val3, token_size_val3
             tsize2 = tsize3
             lss2=lss3
+            feature_labels = ['snv', 'kmer']
+        else:
+            feature_labels = ['snv', 'pc']
         model = Transformer_without_pos_multimodal_add_attn_only2.Transformer(src_vocab_size_1=tsize1,src_vocab_size_2=tsize2,max_length_1=lss1,max_length_2=lss2,device=device,src_pad_idx=0,dropout=0.1)
     else:
+        encoder_names = ['encoder1', 'encoder2', 'encoder3']
+        feature_labels = ['snv', 'pc', 'kmer']
         model=Transformer_without_pos_multimodal_add_attn.Transformer(src_vocab_size_1=tsize1,src_vocab_size_2=tsize2,src_vocab_size_3=tsize3,max_length_1=lss1,max_length_2=lss2,max_length_3=lss3,device=device,src_pad_idx=0,dropout=0.1)
     optimizer=optim.Adam(model.parameters(), lr=lr)
     loss_func = nn.BCEWithLogitsLoss()
@@ -342,12 +356,6 @@ def main():
     train_loader=return_batch(x_train1,x_train2,x_train3,y_train,flag=True)
     if tm==0:
         test_loader=return_batch(x_val1,x_val2,x_val3,y_val,flag=False)
-    at1_train=[]
-    at2_train=[]
-    at3_train=[]
-    at1_test=[]
-    at2_test=[]
-    at3_test=[]
     valid_losses = []
     if torch.cuda.device_count() > 1:
         print(f" Use {torch.cuda.device_count()} GPUs!\n",flush=True)
@@ -356,13 +364,6 @@ def main():
     if sm==0:
         early_stopping = EarlyStopping(patience=20, verbose=True)
     for epoch in range(epoch_num):
-        at1_train_tem=[]
-        at2_train_tem=[]
-        at3_train_tem=[]
-        at1_test_tem=[]
-        at2_test_tem=[]
-        at3_test_tem=[]
-
         _=model.train()
         #exit()
         all_pred_train=[]
@@ -395,15 +396,6 @@ def main():
             #accelerator.backward(loss)
             optimizer.step()
             running_loss += loss.item()
-            if fnum==1 and atw==1:
-                at1_train_tem.append(as1.detach().cpu().numpy())
-            if fnum==2 and atw==1:
-                at1_train_tem.append(as1.detach().cpu().numpy())
-                at2_train_tem.append(as2.detach().cpu().numpy())
-            if fnum==3 and atw==1:
-                at1_train_tem.append(as1.detach().cpu().numpy())
-                at2_train_tem.append(as2.detach().cpu().numpy())
-                at3_train_tem.append(as3.detach().cpu().numpy())
             #exit()
             #print(as1.grad.shape,as1.shape)
             #cal_attr(as1,as1.grad)
@@ -452,15 +444,6 @@ def main():
                     else:
                         predictions,as1,as2,as3 = model(sentence1,sentence2,sentence3)
                     #if epoch==epoch_num-1:
-                    if fnum==1 and atw==1:
-                        at1_test_tem.append(as1.detach().cpu().numpy())
-                    if fnum==2 and atw==1:
-                        at1_test_tem.append(as1.detach().cpu().numpy())
-                        at2_test_tem.append(as2.detach().cpu().numpy())
-                    if fnum==3 and atw==1:
-                        at1_test_tem.append(as1.detach().cpu().numpy())
-                        at2_test_tem.append(as2.detach().cpu().numpy())
-                        at3_test_tem.append(as3.detach().cpu().numpy())
                     #print('before_acc:',predictions,flush=True)
                     #predictions = accelerator.gather(predictions)
                     #print('after_acc:',predictions,flush=True)
@@ -493,25 +476,6 @@ def main():
         if sm==0:
             if es_out:
                 #max_f1=fscore
-                if fnum==1 and atw==1:
-                    at1_train = at1_train_tem
-                if fnum==2 and atw==1:
-                    at1_train = at1_train_tem
-                    at2_train = at2_train_tem
-                if fnum==3 and atw==1:
-                    at1_train=at1_train_tem
-                    at2_train=at2_train_tem
-                    at3_train=at3_train_tem
-                if tm==0:
-                    if fnum==1 and atw==1:
-                        at1_test = at1_test_tem
-                    if fnum==2 and atw==1:
-                        at1_test = at1_test_tem
-                        at2_test = at2_test_tem
-                    if fnum==3 and atw==1:
-                        at1_test=at1_test_tem
-                        at2_test=at2_test_tem
-                        at3_test=at3_test_tem
                     o2 = open(odir + '/output_sample_prob_val_loss.txt', 'w+')
                     o2.write('Sample_Id\tLabel\tPred\tProb\n')
                     c=0
@@ -527,26 +491,6 @@ def main():
             for e in test_label:
                 o3.write(sid_val[c]+'\t'+str(e)+'\t'+str(all_pred[c])+'\t'+str(all_logit[c])+'\n')
                 c+=1
-            if sm==1:
-                if fnum==1 and atw==1:
-                    at1_train = at1_train_tem
-                if fnum==2 and atw==1:
-                    at1_train = at1_train_tem
-                    at2_train = at2_train_tem
-                if fnum==3 and atw==1:
-                    at1_train=at1_train_tem
-                    at2_train=at2_train_tem
-                    at3_train=at3_train_tem
-                if tm==0:
-                    if fnum==1 and atw==1:
-                        at1_test = at1_test_tem
-                    if fnum==2 and atw==1:
-                        at1_test = at1_test_tem
-                        at2_test = at2_test_tem
-                    if fnum==3 and atw==1:
-                        at1_test=at1_test_tem
-                        at2_test=at2_test_tem
-                        at3_test=at3_test_tem
         if acc==1 and epoch>9:
             break
         #if roc>max_auc:
@@ -571,75 +515,37 @@ def main():
         '''
 
         #exit()
-    ## Not test feature importance for now.
-    if atw==0:
-        print('Detect \'-a 1\'! -> Skip the attention weight calculation step...')
-        exit()
-    #cic_train = y_train == all_pred_train
-    if atw==1:
-        train_at1 = np.vstack(at1_train)[: len(x_train1)]
-        train_at2 = np.vstack(at2_train)[: len(x_train1)]
-        train_at3 = np.vstack(at3_train)[: len(x_train1)]
+    if atw == 0:
+        print("Detect '-a 1'! -> Skip the attribution calculation step...")
+        return
 
-    #train_at1=train_at1[cic_train]
-    #train_at2=train_at2[cic_train]
-    #train_at3=train_at3[cic_train]
+    feature_arrays: List[torch.Tensor] = []
+    if fnum >= 1:
+        feature_arrays.append(torch.from_numpy(x_train1))
+    if fnum >= 2:
+        feature_arrays.append(torch.from_numpy(x_train2))
+    if fnum == 3:
+        feature_arrays.append(torch.from_numpy(x_train3))
 
-    #cic_test = y_val == all_pred
-    if tm==0 and atw==1:
-        test_at1 = np.vstack(at1_test)[: len(x_val1)]
-        test_at2 = np.vstack(at2_test)[: len(x_val1)]
-        test_at3 = np.vstack(at3_test)[: len(x_val1)]
+    shap_file_map = {
+        'snv': indir + '/strains_train_sentence_fs_shap.txt',
+        'pc': indir + '/strains_train_pc_token_fs_shap.txt',
+        'kmer': indir + '/strains_train_kmer_token_shap.txt'
+    }
 
-    #test_at1=test_at1[cic_test]
-    #test_at2=test_at2[cic_test]
-    #test_at3=test_at3[cic_test]
-
-    #print(train_at2)
-    #exit()
-    #shap_top=load_shap(indir+'/')
-    if fnum==1:
-        if fused=='pc':
-            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at2,
-                                                                                           indir + '/strains_train_pc_token_fs.txt',
-                                                                                           odir, 'pc_train',
-                                                                                           indir + '/strains_train_pc_token_fs_shap.txt')
-        if fused=='snv':
-            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at1,
-                                                                                           indir + '/strains_train_sentence_fs.txt',
-                                                                                           odir, 'graph_train',
-                                                                                           indir + '/strains_train_sentence_fs_shap.txt')
-
-        if fused=='kmer':
-            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at3,
-                                                                                           indir + '/strains_train_kmer_token.txt',
-                                                                                           odir, 'kmer_train',
-                                                                                           indir + '/strains_train_kmer_token_shap.txt')
-    if fnum==2:
-        if re.search('pc',fused):
-            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at2,
-                                                                                           indir + '/strains_train_pc_token_fs.txt',
-                                                                                           odir, 'pc_train',
-                                                                                           indir + '/strains_train_pc_token_fs_shap.txt')
-        if re.search('snv',fused):
-            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at1,
-                                                                                           indir + '/strains_train_sentence_fs.txt',
-                                                                                           odir, 'graph_train',
-                                                                                           indir + '/strains_train_sentence_fs_shap.txt')
-
-        if re.search('kmer',fused):
-            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at3,
-                                                                                           indir + '/strains_train_kmer_token.txt',
-                                                                                           odir, 'kmer_train',
-                                                                                           indir + '/strains_train_kmer_token_shap.txt')
-    elif fnum==3:
-        analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at2,indir+'/strains_train_pc_token_fs.txt',odir,'pc_train',indir+'/strains_train_pc_token_fs_shap.txt')
-        analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at1,indir+'/strains_train_sentence_fs.txt',odir,'graph_train',indir+'/strains_train_sentence_fs_shap.txt')
-        analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(train_at3,indir+'/strains_train_kmer_token.txt',odir,'kmer_train',indir+'/strains_train_kmer_token_shap.txt')
-        if tm==0:
-            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(test_at2,indir+'/strains_test_pc_token_fs.txt',odir,'pc_test',indir+'/strains_train_pc_token_fs_shap.txt')
-            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(test_at1,indir+'/strains_test_sentence_fs.txt',odir,'graph_test',indir+'/strains_train_sentence_fs_shap.txt')
-            analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(test_at3,indir+'/strains_test_kmer_token.txt',odir,'kmer_test',indir+'/strains_train_kmer_token_shap.txt')
+    export_token_contributions(
+        model,
+        feature_arrays,
+        feature_labels,
+        shap_file_map,
+        odir,
+        encoder_names,
+        device=device,
+        batch_size=batch_size,
+        top_k_pairs=20,
+        subset_sizes=(2, 3),
+        subset_sample_size=32,
+    )
 
 
 if __name__=="__main__":
