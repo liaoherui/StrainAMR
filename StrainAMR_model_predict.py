@@ -4,6 +4,7 @@ import sys
 import argparse
 import numpy as np
 from library import Transformer_without_pos_multimodal_add_attn,analyze_attention_matrix_network_optimize_iterate_shap,Transformer_without_pos,Transformer_without_pos_multimodal_add_attn_only2,analyze_attention_matrix_network_optimize_iterate_shap_top
+from library.token_contribution import export_token_contributions
 import torch
 from torch.nn import functional as F
 from torch import optim,nn
@@ -253,6 +254,15 @@ def main():
     if not os.path.exists(odir):
         os.makedirs(odir)
     ol=open(odir+'/samples_pred_log.txt','w')
+
+    def resolve_shap_file(*relative_paths):
+        for rel_path in relative_paths:
+            if not rel_path:
+                continue
+            candidate = os.path.join(indir, rel_path)
+            if os.path.exists(candidate):
+                return candidate
+        return ""
     #lss1=765
     #lss2=536
     #lss3=1000
@@ -274,30 +284,42 @@ def main():
     print('Token count_type1:',tsize3)
     setup_seed(10)
     if fnum == 1:
+        encoder_names = ['encoder']
         if fused == 'pc':
             x_train1, token_size1 = x_train2, token_size2
             x_val1, token_size_val1 = x_val2, token_size_val2
             tsize1 = tsize2
             lss1 = lss2
+            feature_labels = ['pc']
         elif fused == 'kmer':
             x_train1, token_size1 = x_train3, token_size3
             x_val1, token_size_val1 = x_val3, token_size_val3
             tsize1 = tsize3
             lss1 = lss3
+            feature_labels = ['kmer']
+        else:
+            feature_labels = ['snv']
         model = Transformer_without_pos.Transformer(src_vocab_size=tsize1, max_length=lss1, device=device, src_pad_idx=0, dropout=0.1)
     elif fnum==2:
+        encoder_names = ['encoder1', 'encoder2']
         if re.search('pc',fused) and  re.search('kmer',fused):
             x_train1, token_size1 = x_train3,  token_size3
             x_val1,  token_size_val1 = x_val3, token_size_val3
             tsize1 = tsize3
             lss1=lss3
+            feature_labels = ['kmer', 'pc']
         elif re.search('snv', fused) and re.search('kmer', fused):
             x_train2, token_size2 = x_train3,token_size3
             x_val2,token_size_val2 = x_val3, token_size_val3
             tsize2 = tsize3
             lss2=lss3
+            feature_labels = ['snv', 'kmer']
+        else:
+            feature_labels = ['snv', 'pc']
         model = Transformer_without_pos_multimodal_add_attn_only2.Transformer(src_vocab_size_1=tsize1,src_vocab_size_2=tsize2,max_length_1=lss1,max_length_2=lss2,device=device,src_pad_idx=0,dropout=0.1)
     else:
+        encoder_names = ['encoder1', 'encoder2', 'encoder3']
+        feature_labels = ['snv', 'pc', 'kmer']
         model=Transformer_without_pos_multimodal_add_attn.Transformer(src_vocab_size_1=tsize1,src_vocab_size_2=tsize2,src_vocab_size_3=tsize3,max_length_1=lss1,max_length_2=lss2,max_length_3=lss3,device=device,src_pad_idx=0,dropout=0.1)
     #optimizer=optim.Adam(model.parameters(), lr=lr)
     #loss_func = nn.BCEWithLogitsLoss()
@@ -407,6 +429,43 @@ def main():
         for e in test_label:
             o2.write(sid_val[c]+'\t'+str(e)+'\t'+str(all_pred[c])+'\t'+str(all_logit[c])+'\n')
             c+=1
+        o2.close()
+
+        shap_file_map = {
+            'snv': resolve_shap_file('strains_test_sentence_fs_shap.txt', 'strains_train_sentence_fs_shap.txt'),
+            'pc': resolve_shap_file('strains_test_pc_token_fs_shap.txt', 'strains_train_pc_token_fs_shap.txt'),
+            'kmer': resolve_shap_file('strains_test_kmer_token_shap.txt', 'strains_train_kmer_token_shap.txt')
+        }
+
+        relevant_shap = {label: shap_file_map.get(label, "") for label in feature_labels}
+        if any(os.path.exists(path) for path in relevant_shap.values() if path):
+            feature_tensors = []
+            if fnum >= 1:
+                feature_tensors.append(torch.from_numpy(x_val1))
+            if fnum >= 2:
+                feature_tensors.append(torch.from_numpy(x_val2))
+            if fnum == 3:
+                feature_tensors.append(torch.from_numpy(x_val3))
+            try:
+                export_token_contributions(
+                    model,
+                    feature_tensors,
+                    feature_labels,
+                    relevant_shap,
+                    odir,
+                    encoder_names,
+                    device=device,
+                    batch_size=batch_size,
+                    top_k_pairs=20,
+                    subset_sizes=(2, 3),
+                    subset_sample_size=32,
+                    sample_ids=sid_val,
+                )
+                print('Saved interpretability summaries for test predictions.', flush=True)
+            except Exception as exc:
+                print(f'Failed to export interpretability summaries: {exc}', flush=True)
+        else:
+            print('No SHAP reference files found. Skipping interpretability export.', flush=True)
 
 
 

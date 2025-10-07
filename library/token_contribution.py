@@ -22,7 +22,7 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 from itertools import combinations
-from typing import Dict, List, Mapping, MutableMapping, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
 
 import torch
 from torch import nn
@@ -60,11 +60,64 @@ def load_shap_top_tokens(path: str, top_n: int = 10) -> List[int]:
     return tokens
 
 
+def load_shap_annotations(path: str) -> Tuple[Dict[int, Dict[str, str]], List[str]]:
+    """Parse auxiliary annotation columns from a SHAP ranking file."""
+
+    annotations: Dict[int, Dict[str, str]] = {}
+    columns: List[str] = []
+    if not path or not os.path.exists(path):
+        return annotations, columns
+
+    with open(path, "r", encoding="utf-8") as handle:
+        header = handle.readline().strip().split("\t")
+        if not header or len(header) < 2:
+            return annotations, columns
+
+        def _find_token_index(names: Iterable[str]) -> int:
+            for candidate in ("Token_ID", "TokenID", "Token", "token_id", "token"):
+                if candidate in names:
+                    return names.index(candidate)
+            return -1
+
+        token_idx = _find_token_index(header)
+        if token_idx < 0:
+            return annotations, columns
+
+        excluded = {header[0], header[token_idx], "Shap", "Shap_0", "Shap_1", "Value", "Rank"}
+        columns = [name for name in header if name not in excluded]
+        col_indices = {name: header.index(name) for name in columns}
+
+        for line in handle:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) <= token_idx:
+                continue
+            token_str = parts[token_idx].strip()
+            try:
+                token_id = int(token_str)
+            except ValueError:
+                continue
+            annotations[token_id] = {
+                col: parts[col_indices[col]].strip() if col_indices[col] < len(parts) else ""
+                for col in columns
+            }
+
+    return annotations, columns
+
+
+@dataclass
+class SampleContribution:
+    sample_id: str
+    token_scores: Mapping[str, MutableMapping[int, float]]
+    pair_scores: Mapping[str, MutableMapping[Tuple[int, int], float]]
+    subset_scores: Mapping[str, MutableMapping[Tuple[int, ...], float]]
+
+
 @dataclass
 class AttributionResult:
     token_scores: Mapping[str, MutableMapping[int, float]]
     pair_scores: Mapping[str, MutableMapping[Tuple[int, int], float]]
     subset_scores: Mapping[str, MutableMapping[Tuple[int, ...], float]]
+    per_sample: Optional[List[SampleContribution]] = None
 
 
 class TokenContributionAnalyzer:
@@ -202,6 +255,7 @@ class TokenContributionAnalyzer:
         top_k_pairs: int = 20,
         subset_sizes: Sequence[int] = (2,),
         subset_sample_size: int = 32,
+        sample_ids: Optional[Sequence[str]] = None,
     ) -> AttributionResult:
         dataset = TensorDataset(*tensors)
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
@@ -216,10 +270,32 @@ class TokenContributionAnalyzer:
             label: defaultdict(float) for label in feature_labels
         }
 
+        per_sample_token: Optional[List[Dict[str, MutableMapping[int, float]]]] = None
+        per_sample_pair: Optional[List[Dict[str, MutableMapping[Tuple[int, int], float]]]] = None
+        per_sample_subset: Optional[List[Dict[str, MutableMapping[Tuple[int, ...], float]]]] = None
+
+        if sample_ids is not None:
+            total_len = len(dataset)
+            if total_len != len(sample_ids):
+                raise ValueError("sample_ids length must match dataset length")
+            per_sample_token = [
+                {label: defaultdict(float) for label in feature_labels}
+                for _ in sample_ids
+            ]
+            per_sample_pair = [
+                {label: defaultdict(float) for label in feature_labels}
+                for _ in sample_ids
+            ]
+            per_sample_subset = [
+                {label: defaultdict(float) for label in feature_labels}
+                for _ in sample_ids
+            ]
+
         prev_training_state = self.model.training
         self.model.eval()
 
         try:
+            sample_offset = 0
             for batch in loader:
                 inputs = [tensor.to(self.device).long() for tensor in batch]
 
@@ -264,6 +340,7 @@ class TokenContributionAnalyzer:
                 logits_cpu = logits.detach().cpu().squeeze(1)
 
                 for sample_idx in range(batch_size_eff):
+                    sample_index = sample_offset + sample_idx
                     base_inputs = [inp[sample_idx].detach().clone() for inp in inputs]
                     base_logit = float(logits_cpu[sample_idx])
 
@@ -291,6 +368,10 @@ class TokenContributionAnalyzer:
                         for pos in shap_positions:
                             token_id = int(tokens_tensor[pos].item())
                             token_scores[label][token_id] += float(seq_scores[pos].item())
+                            if per_sample_token is not None:
+                                per_sample_token[sample_index][label][token_id] += float(
+                                    seq_scores[pos].item()
+                                )
 
                         if seq_rollout is not None and shap_positions:
                             seq_rollout = seq_rollout.cpu()
@@ -305,6 +386,10 @@ class TokenContributionAnalyzer:
                                     if neighbour_token == 0:
                                         continue
                                     pair_scores[label][(token_id, neighbour_token)] += float(value)
+                                    if per_sample_pair is not None:
+                                        per_sample_pair[sample_index][label][
+                                            (token_id, neighbour_token)
+                                        ] += float(value)
 
                         if subset_sizes and shap_positions:
                             subset_delta = self._estimate_subset_delta(
@@ -317,11 +402,28 @@ class TokenContributionAnalyzer:
                             )
                             for subset_key, score in subset_delta.items():
                                 subset_scores[label][subset_key] += score
+                                if per_sample_subset is not None:
+                                    per_sample_subset[sample_index][label][subset_key] += score
+
+                sample_offset += batch_size_eff
 
         finally:
             self.model.train(prev_training_state)
 
-        return AttributionResult(token_scores, pair_scores, subset_scores)
+        per_sample_results: Optional[List[SampleContribution]] = None
+        if sample_ids is not None and per_sample_token is not None:
+            per_sample_results = []
+            for idx, sample_id in enumerate(sample_ids):
+                per_sample_results.append(
+                    SampleContribution(
+                        sample_id=sample_id,
+                        token_scores=per_sample_token[idx],
+                        pair_scores=per_sample_pair[idx] if per_sample_pair else {},
+                        subset_scores=per_sample_subset[idx] if per_sample_subset else {},
+                    )
+                )
+
+        return AttributionResult(token_scores, pair_scores, subset_scores, per_sample_results)
 
     def _estimate_subset_delta(
         self,
@@ -389,6 +491,7 @@ def export_token_contributions(
     top_k_pairs: int = 20,
     subset_sizes: Sequence[int] = (2,),
     subset_sample_size: int = 32,
+    sample_ids: Optional[Sequence[str]] = None,
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
 
@@ -410,9 +513,17 @@ def export_token_contributions(
             top_k_pairs=top_k_pairs,
             subset_sizes=subset_sizes,
             subset_sample_size=subset_sample_size,
+            sample_ids=sample_ids,
         )
     finally:
         analyzer.close()
+
+    shap_annotations: Dict[str, Dict[int, Dict[str, str]]] = {}
+    shap_annotation_cols: Dict[str, List[str]] = {}
+    for label, shap_path in shap_file_map.items():
+        annotations, cols = load_shap_annotations(shap_path)
+        shap_annotations[label] = annotations
+        shap_annotation_cols[label] = cols
 
     for label in feature_labels:
         if not shap_sets.get(label):
@@ -422,25 +533,117 @@ def export_token_contributions(
         pair_file = os.path.join(output_dir, f"{label}_token_pair_grad_importance.tsv")
         subset_file = os.path.join(output_dir, f"{label}_token_subset_delta.tsv")
 
+        annotations = shap_annotations.get(label, {})
+        annot_cols = shap_annotation_cols.get(label, [])
+
         with open(token_file, "w", encoding="utf-8") as handle:
-            handle.write("Token_ID\tGradInput\n")
+            header = ["Token_ID", "GradInput"] + annot_cols
+            handle.write("\t".join(header) + "\n")
             for token_id, score in sorted(
                 result.token_scores[label].items(), key=lambda kv: abs(kv[1]), reverse=True
             ):
-                handle.write(f"{token_id}\t{score}\n")
+                row = [str(token_id), str(score)]
+                token_meta = annotations.get(token_id, {})
+                row.extend(token_meta.get(col, "") for col in annot_cols)
+                handle.write("\t".join(row) + "\n")
 
         with open(pair_file, "w", encoding="utf-8") as handle:
-            handle.write("Token_A\tToken_B\tGradWeightedAttention\n")
+            pair_header = ["Token_A", "Token_B", "GradWeightedAttention"]
+            if annot_cols:
+                pair_header.extend(f"Token_A_{col}" for col in annot_cols)
+                pair_header.extend(f"Token_B_{col}" for col in annot_cols)
+            handle.write("\t".join(pair_header) + "\n")
             for (token_a, token_b), score in sorted(
                 result.pair_scores[label].items(), key=lambda kv: abs(kv[1]), reverse=True
             ):
-                handle.write(f"{token_a}\t{token_b}\t{score}\n")
+                row = [str(token_a), str(token_b), str(score)]
+                if annot_cols:
+                    meta_a = annotations.get(token_a, {})
+                    meta_b = annotations.get(token_b, {})
+                    row.extend(meta_a.get(col, "") for col in annot_cols)
+                    row.extend(meta_b.get(col, "") for col in annot_cols)
+                handle.write("\t".join(row) + "\n")
 
         with open(subset_file, "w", encoding="utf-8") as handle:
-            handle.write("Token_Subset\tDeltaLogit\n")
+            subset_header = ["Token_Subset", "DeltaLogit"]
+            if annot_cols:
+                subset_header.extend(f"Subset_{col}" for col in annot_cols)
+            handle.write("\t".join(subset_header) + "\n")
             for subset_key, score in sorted(
                 result.subset_scores[label].items(), key=lambda kv: abs(kv[1]), reverse=True
             ):
                 subset_str = ",".join(str(token_id) for token_id in subset_key)
-                handle.write(f"{subset_str}\t{score}\n")
+                row = [subset_str, str(score)]
+                if annot_cols:
+                    for col in annot_cols:
+                        col_values = [
+                            annotations.get(token_id, {}).get(col, "")
+                            for token_id in subset_key
+                        ]
+                        row.append(";".join(col_values))
+                handle.write("\t".join(row) + "\n")
+
+        if result.per_sample:
+            token_sample_file = os.path.join(
+                output_dir, f"{label}_sample_token_grad_importance.tsv"
+            )
+            pair_sample_file = os.path.join(
+                output_dir, f"{label}_sample_token_pair_grad_importance.tsv"
+            )
+            subset_sample_file = os.path.join(
+                output_dir, f"{label}_sample_token_subset_delta.tsv"
+            )
+
+            with open(token_sample_file, "w", encoding="utf-8") as handle:
+                header = ["Sample_ID", "Token_ID", "GradInput"] + annot_cols
+                handle.write("\t".join(header) + "\n")
+                for sample in result.per_sample:
+                    scores = sample.token_scores.get(label, {})
+                    for token_id, score in sorted(
+                        scores.items(), key=lambda kv: abs(kv[1]), reverse=True
+                    ):
+                        token_meta = annotations.get(token_id, {})
+                        row = [sample.sample_id, str(token_id), str(score)]
+                        row.extend(token_meta.get(col, "") for col in annot_cols)
+                        handle.write("\t".join(row) + "\n")
+
+            with open(pair_sample_file, "w", encoding="utf-8") as handle:
+                header = ["Sample_ID", "Token_A", "Token_B", "GradWeightedAttention"]
+                if annot_cols:
+                    header.extend(f"Token_A_{col}" for col in annot_cols)
+                    header.extend(f"Token_B_{col}" for col in annot_cols)
+                handle.write("\t".join(header) + "\n")
+                for sample in result.per_sample:
+                    scores = sample.pair_scores.get(label, {})
+                    for (token_a, token_b), score in sorted(
+                        scores.items(), key=lambda kv: abs(kv[1]), reverse=True
+                    ):
+                        row = [sample.sample_id, str(token_a), str(token_b), str(score)]
+                        if annot_cols:
+                            meta_a = annotations.get(token_a, {})
+                            meta_b = annotations.get(token_b, {})
+                            row.extend(meta_a.get(col, "") for col in annot_cols)
+                            row.extend(meta_b.get(col, "") for col in annot_cols)
+                        handle.write("\t".join(row) + "\n")
+
+            with open(subset_sample_file, "w", encoding="utf-8") as handle:
+                header = ["Sample_ID", "Token_Subset", "DeltaLogit"]
+                if annot_cols:
+                    header.extend(f"Subset_{col}" for col in annot_cols)
+                handle.write("\t".join(header) + "\n")
+                for sample in result.per_sample:
+                    scores = sample.subset_scores.get(label, {})
+                    for subset_key, score in sorted(
+                        scores.items(), key=lambda kv: abs(kv[1]), reverse=True
+                    ):
+                        subset_str = ",".join(str(token_id) for token_id in subset_key)
+                        row = [sample.sample_id, subset_str, str(score)]
+                        if annot_cols:
+                            for col in annot_cols:
+                                col_values = [
+                                    annotations.get(token_id, {}).get(col, "")
+                                    for token_id in subset_key
+                                ]
+                                row.append(";".join(col_values))
+                        handle.write("\t".join(row) + "\n")
 
