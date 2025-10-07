@@ -93,7 +93,8 @@ def run_cdhit(ptrain,pval,work_dir):
 def output_pc_token_file(d,pdir,label,ofile,idx):
     dr={} # Strain prefix -> Tokens string
     for filename in os.listdir(pdir):
-        pre=re.split('\.',filename)[0]
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         if pre not in dr:
             dr[pre]=[]
         f=open(pdir+'/'+filename,'r')
@@ -197,7 +198,8 @@ def run_ps(train,val,ingenome,label,drug,work_dir):
     dtrain={} # Pre -> Genome dir
     dval={}
     for filename in os.listdir(ingenome):
-        pre=re.split('\.',filename)[0]
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         if pre in train:
             dtrain[pre]=ingenome+'/'+filename
         elif pre in val:
@@ -246,8 +248,13 @@ def cal_len(infile1):
         line=f.readline().strip()
         if not line:break
         ele=line.split('\t')
-        if int(ele[-2])>ms:
-            ms=int(ele[-2])
+        tokens_field = ele[-1].strip() if ele else ''
+        if tokens_field:
+            token_count = len(tokens_field.split(','))
+        else:
+            token_count = 0
+        if token_count>ms:
+            ms=token_count
     '''
     f=open(infile2,'r')
     line=f.readline()
@@ -283,7 +290,8 @@ def scan_length_fs_shap(odir):
 def run(ingenome,label,odir,drug,mfile):
     dr={}
     for filename in os.listdir(ingenome):
-        pre=re.split('\.',filename)[0]
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         #print(filename)
         #print(pre)
         #exit()

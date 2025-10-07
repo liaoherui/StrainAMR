@@ -14,7 +14,8 @@ def generate_at(label,inalign,mfile,genomes,ofile):
     dt={} # strain -> contig -> tokens
     for filename in os.listdir(inalign):
         #dtem={}
-        gid=re.split('\.',filename)[0]
+        #gid=re.split('\.',filename)[0]
+        gid=os.path.splitext(filename)[0]
         #pre=sa[]
 
         #if pre not in d:d[pre]=[]
@@ -86,7 +87,8 @@ def generate_at(label,inalign,mfile,genomes,ofile):
     d={} # strain -> tokens
     for filename in os.listdir(genomes):
         if re.search('fai',filename):continue
-        pre=re.split('\.',filename)[0]
+        #pre=re.split('\.',filename)[0]
+        pre=os.path.splitext(filename)[0]
         if pre not in dt:continue
         if pre not in d:d[pre]=[]
         f=open(genomes+'/'+filename,'r')
