@@ -542,12 +542,23 @@ def main():
         feature_arrays.append(torch.from_numpy(x_train2))
     if fnum == 3:
         feature_arrays.append(torch.from_numpy(x_train3))
-
+    '''
     shap_file_map = {
         'snv': indir + '/shap/strains_train_sentence_fs_shap.txt',
         'pc': indir + '/shap/strains_train_pc_token_fs_shap.txt',
         'kmer': indir + '/shap/strains_train_kmer_token_shap.txt'
     }
+    '''
+
+    shap_file_map = {}
+    for key, filename in [
+        ('snv', 'strains_train_sentence_fs_shap.txt'),
+        ('pc', 'strains_train_pc_token_fs_shap.txt'),
+        ('kmer', 'strains_train_kmer_token_shap.txt')
+    ]:
+        primary = os.path.join(indir, 'shap', filename)
+        fallback = os.path.join(indir, filename)
+        shap_file_map[key] = primary if os.path.exists(primary) else fallback
 
     export_token_contributions(
         model,
