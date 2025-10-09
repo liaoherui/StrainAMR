@@ -258,9 +258,7 @@ def main():
         shap_dir=indir
 
     logs_dir = os.path.join(odir, 'logs')
-    analysis_dir = os.path.join(odir, 'analysis')
-    for d in (logs_dir,analysis_dir):
-        os.makedirs(d, exist_ok=True)
+    os.makedirs(logs_dir, exist_ok=True)
     
     ol=open(odir+'/samples_pred_log.txt','w')
 
