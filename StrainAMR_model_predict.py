@@ -253,6 +253,9 @@ def main():
 
     if not os.path.exists(odir):
         os.makedirs(odir)
+    shap_dir = os.path.join(indir, 'shap')
+    if not os.path.exists(shap_dir):
+        shap_dir=indir
     ol=open(odir+'/samples_pred_log.txt','w')
 
     def resolve_shap_file(*relative_paths):
@@ -430,6 +433,7 @@ def main():
             pair_pc = os.path.join(shap_dir, 'strains_test_pc_interaction.txt')
             pair_snv = os.path.join(shap_dir, 'strains_test_snv_interaction.txt')
             pair_kmer = os.path.join(shap_dir, 'strains_test_kmer_interaction.txt')
+            '''
             shap_feature_select_withcls.shap_select(
                 pc_file, pc_shap, [os.path.join(indir, 'pc_matches.txt')]
             )
@@ -488,6 +492,7 @@ def main():
                 map_files=[os.path.join(indir, 'kmer_token_id.txt')],
 
             )
+            '''
 
         o2 = open(os.path.join(logs_dir, 'output_sample_prob_predict.txt'), 'w+')
         o2.write('Sample_ID\tLable\tPred\tProb\n')
