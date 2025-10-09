@@ -505,12 +505,23 @@ def main():
             o2.write(sid_val[c]+'\t'+str(e)+'\t'+str(all_pred[c])+'\t'+str(all_logit[c])+'\n')
             c+=1
         o2.close()
-
+        '''
         shap_file_map = {
             'snv': resolve_shap_file('strains_test_sentence_fs_shap.txt', 'strains_train_sentence_fs_shap.txt'),
             'pc': resolve_shap_file('strains_test_pc_token_fs_shap.txt', 'strains_train_pc_token_fs_shap.txt'),
             'kmer': resolve_shap_file('strains_test_kmer_token_shap.txt', 'strains_train_kmer_token_shap.txt')
         }
+        '''
+        
+        shap_file_map = {}
+        for key, filename in [
+            ('snv', 'strains_train_sentence_fs_shap.txt'),
+            ('pc', 'strains_train_pc_token_fs_shap.txt'),
+            ('kmer', 'strains_train_kmer_token_shap.txt')
+        ]:
+            primary = os.path.join(indir, 'shap', filename)
+            fallback = os.path.join(indir, filename)
+            shap_file_map[key] = primary if os.path.exists(primary) else fallback
 
         relevant_shap = {label: shap_file_map.get(label, "") for label in feature_labels}
         if any(os.path.exists(path) for path in relevant_shap.values() if path):
