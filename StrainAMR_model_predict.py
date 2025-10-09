@@ -4,6 +4,7 @@ import sys
 import argparse
 import numpy as np
 from library import Transformer_without_pos_multimodal_add_attn,analyze_attention_matrix_network_optimize_iterate_shap,Transformer_without_pos,Transformer_without_pos_multimodal_add_attn_only2,analyze_attention_matrix_network_optimize_iterate_shap_top
+from library.token_contribution import export_token_contributions
 import torch
 from torch.nn import functional as F
 from torch import optim,nn
@@ -116,49 +117,60 @@ def stat_matrix_shape(infile):
     return x,y
 
 def process_intsv(infile,in_x):
-    f=open(infile,'r')
-
-    line=f.readline()
-    #data=pd.read_table(infile)
-    x,ls=stat_matrix_shape(infile)
-    if in_x==0:
-        matrix=np.zeros((x,ls))
-    else:
-        matrix=np.zeros((x,in_x))
-    #print(matrix.shape)
-    #exit()
-    #print(data)
-    #exit()
-    dtoken={}
-    #line=f.readline()
-    c=0
-    yp=[]
-    mt=0
-    samples=[]
-
-    while True:
-        line=f.readline().strip()
-        if not line:break
-        ele=line.split()
-        #print(ele)
+    with open(infile,'r') as f:
+        line=f.readline()
+        #data=pd.read_table(infile)
+        x,ls=stat_matrix_shape(infile)
+        if in_x==0:
+            matrix=np.zeros((x,ls))
+        else:
+            matrix=np.zeros((x,in_x))
+        #print(matrix.shape)
         #exit()
-        tk=re.split(',',ele[-1])
-        tem=0
-        for t in tk:
-            #print(t,ele[0])
-            if int(t) > mt:
-                mt=int(t)
-            matrix[c][tem]=int(t)
-            tem+=1
-            if not int(t)==0:
-                dtoken[t]=''
-        c+=1
-        yp.append(int(ele[1]))
-        samples.append(ele[0])
+        #print(data)
+        #exit()
+        dtoken={}
+        #line=f.readline()
+        c=0
+        yp=[]
+        raw_labels=[]
+        mt=0
+        samples=[]
+        has_labels=True
+
+        while True:
+            line=f.readline().strip()
+            if not line:break
+            ele=line.split()
+            #print(ele)
+            #exit()
+            tk=re.split(',',ele[-1])
+            tem=0
+            for t in tk:
+                #print(t,ele[0])
+                if int(t) > mt:
+                    mt=int(t)
+                matrix[c][tem]=int(t)
+                tem+=1
+                if not int(t)==0:
+                    dtoken[t]=''
+            c+=1
+            raw_label = ele[1] if len(ele) > 1 else ''
+            try:
+                label_val = int(raw_label)
+            except (ValueError, IndexError):
+                has_labels=False
+                label_val = 0
+            yp.append(label_val)
+            raw_labels.append(raw_label if raw_label else 'NA')
+            samples.append(ele[0])
     #print(len(yp))
     yp=np.array(yp)
-    y=np.eye(2)[yp]
-    return matrix,yp,y,mt,ls,samples
+    if has_labels:
+        y=np.eye(2)[np.clip(yp,0,1)]
+    else:
+        y=np.zeros((len(yp),2))
+    return matrix,yp,y,mt,ls,samples,raw_labels,has_labels
 
 def return_batch(train_sentence1,train_sentence2,train_sentence3,label,flag):
     X_train1=torch.from_numpy(train_sentence1).to(device)
@@ -253,18 +265,31 @@ def main():
     if not os.path.exists(odir):
         os.makedirs(odir)
     ol=open(odir+'/samples_pred_log.txt','w')
+
+    def resolve_shap_file(*relative_paths):
+        for rel_path in relative_paths:
+            if not rel_path:
+                continue
+            candidate = os.path.join(indir, rel_path)
+            if os.path.exists(candidate):
+                return candidate
+        return ""
     #lss1=765
     #lss2=536
     #lss3=1000
     lss1,lss2,lss3=load_token_len(indir)
 
-    x_train1,y_train,yl_train,token_size1,ls,sid_train=process_intsv(indir+'/strains_train_sentence_fs.txt',lss1)
-    x_train2,y_train,yl_train,token_size2,ls,sid_train=process_intsv(indir+'/strains_train_pc_token_fs.txt',lss2)
-    x_train3,y_train,yl_train,token_size3,ls,sid_train=process_intsv(indir+'/strains_train_kmer_token.txt',lss3)
+    x_train1,y_train,yl_train,token_size1,ls,sid_train,_,_=process_intsv(indir+'/strains_train_sentence_fs.txt',lss1)
+    x_train2,y_train,yl_train,token_size2,ls,sid_train,_,_=process_intsv(indir+'/strains_train_pc_token_fs.txt',lss2)
+    x_train3,y_train,yl_train,token_size3,ls,sid_train,_,_=process_intsv(indir+'/strains_train_kmer_token.txt',lss3)
 
-    x_val1,y_val,yl_val,token_size_val1,ls_val,sid_val=process_intsv(indir+'/strains_test_sentence_fs.txt',lss1)
-    x_val2,y_val,yl_val,token_size_val2,ls_val,sid_val=process_intsv(indir+'/strains_test_pc_token_fs.txt',lss2)
-    x_val3,y_val,yl_val,token_size_val3,ls_val,sid_val=process_intsv(indir+'/strains_test_kmer_token.txt',lss3)
+    x_val1,y_val_snv,yl_val_snv,token_size_val1,ls_val_snv,sid_val_snv,raw_labels_snv,has_labels_snv=process_intsv(indir+'/strains_test_sentence_fs.txt',lss1)
+    x_val2,y_val_pc,yl_val_pc,token_size_val2,_,_,raw_labels_pc,has_labels_pc=process_intsv(indir+'/strains_test_pc_token_fs.txt',lss2)
+    x_val3,y_val_kmer,yl_val_kmer,token_size_val3,_,sid_val,raw_labels_kmer,has_labels_kmer=process_intsv(indir+'/strains_test_kmer_token.txt',lss3)
+
+    y_val = y_val_kmer
+    raw_labels = raw_labels_kmer
+    has_labels = has_labels_snv and has_labels_pc and has_labels_kmer
 
     tsize1=token_size1+2
     print('Token count_type1:',tsize1)
@@ -274,30 +299,42 @@ def main():
     print('Token count_type1:',tsize3)
     setup_seed(10)
     if fnum == 1:
+        encoder_names = ['encoder']
         if fused == 'pc':
             x_train1, token_size1 = x_train2, token_size2
             x_val1, token_size_val1 = x_val2, token_size_val2
             tsize1 = tsize2
             lss1 = lss2
+            feature_labels = ['pc']
         elif fused == 'kmer':
             x_train1, token_size1 = x_train3, token_size3
             x_val1, token_size_val1 = x_val3, token_size_val3
             tsize1 = tsize3
             lss1 = lss3
+            feature_labels = ['kmer']
+        else:
+            feature_labels = ['snv']
         model = Transformer_without_pos.Transformer(src_vocab_size=tsize1, max_length=lss1, device=device, src_pad_idx=0, dropout=0.1)
     elif fnum==2:
+        encoder_names = ['encoder1', 'encoder2']
         if re.search('pc',fused) and  re.search('kmer',fused):
             x_train1, token_size1 = x_train3,  token_size3
             x_val1,  token_size_val1 = x_val3, token_size_val3
             tsize1 = tsize3
             lss1=lss3
+            feature_labels = ['kmer', 'pc']
         elif re.search('snv', fused) and re.search('kmer', fused):
             x_train2, token_size2 = x_train3,token_size3
             x_val2,token_size_val2 = x_val3, token_size_val3
             tsize2 = tsize3
             lss2=lss3
+            feature_labels = ['snv', 'kmer']
+        else:
+            feature_labels = ['snv', 'pc']
         model = Transformer_without_pos_multimodal_add_attn_only2.Transformer(src_vocab_size_1=tsize1,src_vocab_size_2=tsize2,max_length_1=lss1,max_length_2=lss2,device=device,src_pad_idx=0,dropout=0.1)
     else:
+        encoder_names = ['encoder1', 'encoder2', 'encoder3']
+        feature_labels = ['snv', 'pc', 'kmer']
         model=Transformer_without_pos_multimodal_add_attn.Transformer(src_vocab_size_1=tsize1,src_vocab_size_2=tsize2,src_vocab_size_3=tsize3,max_length_1=lss1,max_length_2=lss2,max_length_3=lss3,device=device,src_pad_idx=0,dropout=0.1)
     #optimizer=optim.Adam(model.parameters(), lr=lr)
     #loss_func = nn.BCEWithLogitsLoss()
@@ -330,6 +367,9 @@ def main():
     train_loader=return_batch(x_train1,x_train2,x_train3,y_train,flag=True)
 
     test_loader=return_batch(x_val1,x_val2,x_val3,y_val,flag=False)
+
+    missing_label_flag = os.path.join(indir, 'test_labels_missing.flag')
+    labels_available = has_labels and (not os.path.exists(missing_label_flag))
     at1_train=[]
     at2_train=[]
     at3_train=[]
@@ -386,16 +426,21 @@ def main():
                     #print('pred:',pred,flush=True)
                     all_pred+=pred
                     all_logit+=[i for i in logit]
-                    test_label+=batch_y.tolist()
-            acc=accuracy_score(test_label,all_pred)
-            precision=precision_score(test_label,all_pred)
-            recall=recall_score(test_label,all_pred)
-            fscore= 2 * precision * recall / (precision + recall)
-            fpr, tpr, thresholds = roc_curve(test_label, all_logit)
-            roc = auc(fpr, tpr)
-            #valid_loss = np.average(valid_losses)
-            print(f'Test set || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',flush=True)
-            print(f'Test set || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',file=ol)
+                    if labels_available:
+                        test_label+=batch_y.tolist()
+            if labels_available and len(test_label)>0:
+                true_labels=[int(round(item)) for item in test_label]
+                acc=accuracy_score(true_labels,all_pred)
+                precision=precision_score(true_labels,all_pred,zero_division=0)
+                recall=recall_score(true_labels,all_pred,zero_division=0)
+                fscore= 0.0 if (precision+recall)==0 else 2 * precision * recall / (precision + recall)
+                fpr, tpr, thresholds = roc_curve(true_labels, all_logit)
+                roc = auc(fpr, tpr)
+                metric_line=f'Test set || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}'
+            else:
+                metric_line='Test set || accuracy: N/A || precision: N/A || recall: N/A || fscore: N/A || AUC: N/A (labels not provided)'
+            print(metric_line,flush=True)
+            print(metric_line,file=ol)
 
 
 
@@ -403,10 +448,48 @@ def main():
 
         o2 = open(odir + '/output_sample_prob_predict.txt', 'w+')
         o2.write('Sample_ID\tLable\tPred\tProb\n')
-        c=0
-        for e in test_label:
-            o2.write(sid_val[c]+'\t'+str(e)+'\t'+str(all_pred[c])+'\t'+str(all_logit[c])+'\n')
-            c+=1
+        for idx, sample_id in enumerate(sid_val):
+            label_entry = raw_labels[idx] if idx < len(raw_labels) else 'NA'
+            pred_entry = all_pred[idx] if idx < len(all_pred) else ''
+            prob_entry = all_logit[idx] if idx < len(all_logit) else ''
+            o2.write(sample_id+'\t'+str(label_entry)+'\t'+str(pred_entry)+'\t'+str(prob_entry)+'\n')
+        o2.close()
+
+        shap_file_map = {
+            'snv': resolve_shap_file('strains_test_sentence_fs_shap.txt', 'strains_train_sentence_fs_shap.txt'),
+            'pc': resolve_shap_file('strains_test_pc_token_fs_shap.txt', 'strains_train_pc_token_fs_shap.txt'),
+            'kmer': resolve_shap_file('strains_test_kmer_token_shap.txt', 'strains_train_kmer_token_shap.txt')
+        }
+
+        relevant_shap = {label: shap_file_map.get(label, "") for label in feature_labels}
+        if any(os.path.exists(path) for path in relevant_shap.values() if path):
+            feature_tensors = []
+            if fnum >= 1:
+                feature_tensors.append(torch.from_numpy(x_val1))
+            if fnum >= 2:
+                feature_tensors.append(torch.from_numpy(x_val2))
+            if fnum == 3:
+                feature_tensors.append(torch.from_numpy(x_val3))
+            try:
+                export_token_contributions(
+                    model,
+                    feature_tensors,
+                    feature_labels,
+                    relevant_shap,
+                    odir,
+                    encoder_names,
+                    device=device,
+                    batch_size=batch_size,
+                    top_k_pairs=20,
+                    subset_sizes=(2, 3),
+                    subset_sample_size=32,
+                    sample_ids=sid_val,
+                )
+                print('Saved interpretability summaries for test predictions.', flush=True)
+            except Exception as exc:
+                print(f'Failed to export interpretability summaries: {exc}', flush=True)
+        else:
+            print('No SHAP reference files found. Skipping interpretability export.', flush=True)
 
 
 

@@ -21,6 +21,39 @@ def build_dir(idir):
         os.makedirs(idir)
 
 
+def ensure_test_label_file(label_path, sample_ids, header_line, odir):
+    """Return a usable label file for downstream steps.
+
+    If the user did not supply labels, generate a placeholder file with
+    "NA" labels so token generation utilities keep their expected format.
+    Also drop/refresh the missing-label flag so prediction knows whether to
+    compute evaluation metrics.
+    """
+
+    default_header = header_line if header_line else 'Sample_ID\tLabel'
+    flag_path = os.path.join(odir, 'test_labels_missing.flag')
+    placeholder_path = os.path.join(odir, 'test_label_placeholder.txt')
+
+    if label_path and os.path.exists(label_path) and os.path.getsize(label_path) > 0:
+        # Ensure a stale flag or placeholder from a previous run is cleared.
+        if os.path.exists(flag_path):
+            os.remove(flag_path)
+        if os.path.exists(placeholder_path):
+            os.remove(placeholder_path)
+        return label_path, True
+
+    with open(placeholder_path, 'w+') as handle:
+        handle.write(default_header + '\n')
+        for sid in sample_ids:
+            handle.write(f"{sid}\tNA\n")
+
+    with open(flag_path, 'w+') as handle:
+        handle.write('Test labels were not provided; metrics will be skipped during prediction.\n')
+
+    print('No test label file supplied; generated placeholder labels at {}.'.format(placeholder_path), flush=True)
+    return placeholder_path, False
+
+
 def run_prodigal_rgi(dr,odir):
     gdir=odir+'/Genes_ts'
     ginfo=odir+'/Genes_info_ts'
@@ -326,19 +359,23 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile):
     #exit()
     filter_rgi(odir+'/RGI_raw_ts',drug,mfile,odir+'/RGI_ts')
     #exit()
-    f=open(label,'r')
-    line=f.readline()
     x=[]
     y=[]
-    while True:
-        line=f.readline().strip()
-        if not line:break
-        ele=line.split()
-        #print(ele)
-        #exit()
-        ele[0]=re.split('\.',ele[0])[0]
-        x.append(ele[0])
-        y.append(ele[1])
+    header_line='Sample_ID\tLabel'
+    with open(label,'r') as f:
+        header_raw=f.readline().strip()
+        if header_raw:
+            header_line=header_raw
+        while True:
+            line=f.readline().strip()
+            if not line:break
+            ele=line.split()
+            #print(ele)
+            #exit()
+            ele[0]=re.split('\.',ele[0])[0]
+            x.append(ele[0])
+            if len(ele)>1:
+                y.append(ele[1])
     #x=np.array(x)
     #y=np.array(y)
     #splits=StratifiedKFold(n_splits=3,shuffle=True,random_state=1234)
@@ -376,10 +413,11 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile):
         
 
         copy_protein(odir+'/Proteins_ts',tem_pv)
-        
-        
+
+        test_label_path, _ = ensure_test_label_file(label2, val, header_line, odir)
+
         ########### Graph-based tokens ###########
-        
+
         #gt=work_dir+'/Genomes_train'
         if not snv_c==1:
             gv=work_dir+'/Genomes_test'
@@ -391,7 +429,7 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile):
             align(gv,graph,align_res)
 
 
-            generate_at(label2,align_res,work_dir+'/node_token_match.txt',tem_gv,work_dir+'/strains_test_sentence.txt')
+            generate_at(test_label_path,align_res,work_dir+'/node_token_match.txt',tem_gv,work_dir+'/strains_test_sentence.txt')
         
         ############### PC tokens ############
         #ptrain=merge_all_proteins(tem_pt,work_dir,'train')
@@ -399,13 +437,13 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile):
             pval=merge_all_proteins(tem_pv,work_dir,'test')
 
             cls1,cls2=run_cdhit(pval,work_dir)
-            generate_tokens_from_cdhit(work_dir,label2) 
+            generate_tokens_from_cdhit(work_dir,test_label_path)
         
         ############### K-mer tokens ##########
         #print(os.path.abspath(work_dir))
         #exit()
         if not kmer_c==1:
-            run_ps(intest,label,label2,drug,os.path.abspath(work_dir))
+            run_ps(intest,label,test_label_path,drug,os.path.abspath(work_dir))
         #exit()
         
         #train=x[train_idx]
