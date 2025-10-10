@@ -258,9 +258,12 @@ def main():
         shap_dir=indir
 
     logs_dir = os.path.join(odir, 'logs')
-    os.makedirs(logs_dir, exist_ok=True)
+    analysis_dir = os.path.join(odir, 'analysis')
     
-    ol=open(odir+'/samples_pred_log.txt','w')
+    for d in (logs_dir,analysis_dir):
+        os.makedirs(d, exist_ok=True)
+        
+    ol=open(logs_dir +'/samples_pred_log.txt','w')
 
     def resolve_shap_file(*relative_paths):
         for rel_path in relative_paths:
@@ -538,7 +541,7 @@ def main():
                     feature_tensors,
                     feature_labels,
                     relevant_shap,
-                    odir,
+                    analysis_dir,
                     encoder_names,
                     device=device,
                     batch_size=batch_size,
