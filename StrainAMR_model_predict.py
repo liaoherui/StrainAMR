@@ -223,6 +223,8 @@ def main():
     #                     help="If set to 0, then will not output the attention weight between tokens. (Default: 1).")
     parser.add_argument('-o', '--outdir', dest='outdir', type=str,
                         help="Output directory of results. (Default: StrainAMR_fold_res)")
+    parser.add_argument('--batch_size', dest='batch_size', type=int,
+                        help="Batch size for evaluation and interpretability export. (Default: 20).")
     args = parser.parse_args()
     indir = args.input_file
     #tm=args.train_mode
@@ -231,6 +233,7 @@ def main():
     #atw=args.attn_weight
     odir= args.outdir
     model_PATH=args.model_PATH
+    global batch_size
     # if not atw:
     #     atw=1
     # else:
@@ -264,6 +267,9 @@ def main():
         os.makedirs(d, exist_ok=True)
         
     ol=open(logs_dir +'/samples_pred_log.txt','w')
+
+    if args.batch_size:
+        batch_size = args.batch_size
 
     def resolve_shap_file(*relative_paths):
         for rel_path in relative_paths:
