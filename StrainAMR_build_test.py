@@ -338,6 +338,26 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=
         #exit()
         dr[pre]=intest+'/'+filename
         val.append(pre)
+
+    provided_label_file = bool(label2)
+    if provided_label_file:
+        label2 = os.path.abspath(label2)
+        if not os.path.exists(label2):
+            raise FileNotFoundError(f"Provided label file not found: {label2}")
+    else:
+        placeholder_label = os.path.join(odir, 'test_labels_placeholder.txt')
+        header = 'ID\tLabel'
+        if os.path.exists(label):
+            with open(label, 'r') as train_label_fh:
+                train_header = train_label_fh.readline().strip()
+                if train_header:
+                    header = train_header
+        with open(placeholder_label, 'w') as placeholder_fh:
+            placeholder_fh.write(header + '\n')
+            for sid in sorted(val):
+                placeholder_fh.write(f"{sid}\t-1\n")
+        label2 = placeholder_label
+        print(f"No test label file supplied. Created placeholder labels at {label2}.", flush=True)
     # Run prodigal and rgi for all input genomes
     print('Run Prodigal and RGI for all input genomes!',flush=True)
     gdir,pdir=run_prodigal_rgi(dr,odir,threads)
@@ -476,7 +496,7 @@ def main():
     usage="StrainAMR_build_test - Takes strain genomes (test sets) as input and extracts graph-based, pc-based, k-mer-based features for antimicrobial resistance prediction."
     parser=argparse.ArgumentParser(prog="StrainAMR_build_test.py",description=usage)
     parser.add_argument('-i','--input_file',dest='input_file',type=str,help="The directory of the input strain genomes (test set).")
-    parser.add_argument('-l','--label_file',dest='lab_file',type=str,help="The directory of the input label files for your test data.")
+    parser.add_argument('-l','--label_file',dest='lab_file',type=str,help="The directory of the input label file for your test data. If omitted, placeholder labels will be generated automatically.")
     parser.add_argument('-d','--drug',dest='drug_name',type=str,help="The name of the predicted drug. (Note: The drug name of your input test data must match the drug name of your training data.)")
     parser.add_argument('-p','--pc',dest='close_pc',type=int,help="If set to 1, then will skip pc tokens generation step. (Defaut: 0)" ,default=0)
     parser.add_argument('-s','--snv',dest='close_snv',type=int,help="If set to 1, then will skip snv tokens generation step. (Default: 0)",default=0)
