@@ -3,6 +3,8 @@ import os
 import numpy as np
 from sklearn.feature_selection import chi2
 
+from library import utils
+
 
 def scan_token(infile,ofile,d,token_priority=None,max_tokens=None):
     o=open(ofile,'w+')
@@ -53,7 +55,15 @@ def scan_token(infile,ofile,d,token_priority=None,max_tokens=None):
         o.write(ele[0]+'\t'+ele[1]+'\t'+str(non_zero_count)+'\t'+','.join(tokens_out)+'\n')
     
 
-def sef(infile,ofile,ofile2,max_features=None,max_tokens_per_sentence=None):
+def sef(
+    infile,
+    ofile,
+    ofile2,
+    max_features=None,
+    max_tokens_per_sentence=None,
+    mapping_files=None,
+    rgi_dir=None,
+):
     f=open(infile,'r')
     line=f.readline()
     d={} # strain -> token_id -> frequency
@@ -91,11 +101,15 @@ def sef(infile,ofile,ofile2,max_features=None,max_tokens_per_sentence=None):
     #nX=sel.fit_transform(X)
     #print(nX.shape)
     scores, pvalues = chi2(X, y)
+    token_map = utils.load_token_mappings(mapping_files)
+    rgi_map = utils.load_rgi_annotations(rgi_dir)
+
     o=open(ofile,'w+')
-    o.write('ID\tFeature_ID\tP-value\tChi2-statistic\n')
+    header=['ID','Feature_ID','Feature','AMR_Gene_Family','P-value','Chi2-statistic']
+    o.write('\t'.join(header)+'\n')
     c=1
     dr={}
-    di={}
+    stats={}
     all_t={}
     for i in range(len(scores)):
         if pvalues[i]>0.05:
@@ -103,17 +117,19 @@ def sef(infile,ofile,ofile2,max_features=None,max_tokens_per_sentence=None):
             continue
         #print(f"Feature {arr[i]}: P-value = {pvalues[i]}, Chi2-statistic = {scores[i]}")
         dr[arr[i]]=pvalues[i]
-        #o.write(str(c)+'\t'+str(arr[i])+'\t'+str(pvalues[i])+'\t'+str(scores[i])+'\n')
-        di[arr[i]]=str(arr[i])+'\t'+str(pvalues[i])+'\t'+str(scores[i])+'\n'
-        #c+=1
-        #exit()
+        stats[arr[i]]=(pvalues[i],scores[i])
     res=sorted(dr.items(), key = lambda kv:(kv[1], kv[0]))
     if max_features is not None and max_features > 0:
         res=res[:max_features]
     dused={}
     ordered_features=[r[0] for r in res]
     for r in res:
-        o.write(str(c)+'\t'+di[r[0]])
+        feature_id=r[0]
+        feature_name=utils.token_to_feature(feature_id,token_map)
+        amr_family=rgi_map.get(feature_name,'NA') if rgi_map else 'NA'
+        pval,chi2=stats.get(feature_id,(dr[feature_id],0.0))
+        row=[str(c),str(feature_id),feature_name,amr_family,str(pval),str(chi2)]
+        o.write('\t'.join(row)+'\n')
         dused[r[0]]=''
         c+=1
     if len(res)==0:

@@ -556,6 +556,15 @@ def main():
                 feature_tensors.append(torch.from_numpy(x_val2))
             if fnum == 3:
                 feature_tensors.append(torch.from_numpy(x_val3))
+
+            annotation_file_map = {
+                'snv': [os.path.join(indir, 'feature_remain_graph.txt')],
+                'pc': [os.path.join(indir, 'feature_remain_pc.txt')],
+                'kmer': [os.path.join(indir, 'kmer_token_id.txt')],
+            }
+            relevant_annotations = {
+                label: annotation_file_map.get(label, []) for label in feature_labels
+            }
             try:
                 export_token_contributions(
                     model,
@@ -570,6 +579,7 @@ def main():
                     subset_sizes=(2, 3),
                     subset_sample_size=32,
                     sample_ids=sid_val,
+                    annotation_file_map=relevant_annotations,
                 )
                 print('Saved interpretability summaries for test predictions.', flush=True)
             except Exception as exc:
