@@ -223,6 +223,8 @@ def main():
     #                     help="If set to 0, then will not output the attention weight between tokens. (Default: 1).")
     parser.add_argument('-o', '--outdir', dest='outdir', type=str,
                         help="Output directory of results. (Default: StrainAMR_fold_res)")
+    parser.add_argument('--batch_size', dest='batch_size', type=int,
+                        help="Batch size for evaluation and interpretability export. (Default: 20).")
     args = parser.parse_args()
     indir = args.input_file
     #tm=args.train_mode
@@ -231,6 +233,7 @@ def main():
     #atw=args.attn_weight
     odir= args.outdir
     model_PATH=args.model_PATH
+    global batch_size
     # if not atw:
     #     atw=1
     # else:
@@ -265,6 +268,9 @@ def main():
         
     ol=open(logs_dir +'/samples_pred_log.txt','w')
 
+    if args.batch_size:
+        batch_size = args.batch_size
+
     def resolve_shap_file(*relative_paths):
         for rel_path in relative_paths:
             if not rel_path:
@@ -285,6 +291,7 @@ def main():
     x_val1,y_val,yl_val,token_size_val1,ls_val,sid_val=process_intsv(indir+'/strains_test_sentence_fs.txt',lss1)
     x_val2,y_val,yl_val,token_size_val2,ls_val,sid_val=process_intsv(indir+'/strains_test_pc_token_fs.txt',lss2)
     x_val3,y_val,yl_val,token_size_val3,ls_val,sid_val=process_intsv(indir+'/strains_test_kmer_token.txt',lss3)
+    test_labels_available = np.isin(y_val, [0, 1]).all()
 
     tsize1=token_size1+2
     print('Token count_type1:',tsize1)
@@ -417,15 +424,25 @@ def main():
                     all_pred+=pred
                     all_logit+=[i for i in logit]
                     test_label+=batch_y.tolist()
-            acc=accuracy_score(test_label,all_pred)
-            precision=precision_score(test_label,all_pred)
-            recall=recall_score(test_label,all_pred)
-            fscore= 2 * precision * recall / (precision + recall)
-            fpr, tpr, thresholds = roc_curve(test_label, all_logit)
-            roc = auc(fpr, tpr)
-            #valid_loss = np.average(valid_losses)
-            print(f'Test set || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',flush=True)
-            print(f'Test set || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',file=ol)
+            if test_labels_available:
+                try:
+                    test_label_arr = np.array(test_label, dtype=int)
+                    acc=accuracy_score(test_label_arr,all_pred)
+                    precision=precision_score(test_label_arr,all_pred)
+                    recall=recall_score(test_label_arr,all_pred)
+                    fscore= 2 * precision * recall / (precision + recall)
+                    fpr, tpr, thresholds = roc_curve(test_label_arr, all_logit)
+                    roc = auc(fpr, tpr)
+                    print(f'Test set || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',flush=True)
+                    print(f'Test set || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',file=ol)
+                except ValueError as exc:
+                    msg = f'Unable to compute evaluation metrics: {exc}'
+                    print(msg, flush=True)
+                    print(msg, file=ol)
+            else:
+                msg = 'Test labels are missing or outside the expected range. Skipping evaluation metrics.'
+                print(msg, flush=True)
+                print(msg, file=ol)
 
         if fnum == 3:
             test_at1 = np.vstack(at1_test_tem)
@@ -505,7 +522,11 @@ def main():
         o2.write('Sample_ID\tLable\tPred\tProb\n')
         c=0
         for e in test_label:
-            o2.write(sid_val[c]+'\t'+str(e)+'\t'+str(all_pred[c])+'\t'+str(all_logit[c])+'\n')
+            try:
+                label_value = int(e)
+            except (TypeError, ValueError):
+                label_value = e
+            o2.write(sid_val[c]+'\t'+str(label_value)+'\t'+str(all_pred[c])+'\t'+str(all_logit[c])+'\n')
             c+=1
         o2.close()
         '''
