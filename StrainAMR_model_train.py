@@ -13,6 +13,7 @@ from torch import optim,nn
 import torch.utils.data as Data
 import torch.utils.data.dataset as Dataset
 from sklearn.metrics import precision_score,recall_score,accuracy_score,roc_curve, auc
+from sklearn.model_selection import train_test_split
 import random
 
 #accelerator = Accelerator()
@@ -234,19 +235,27 @@ def main():
                         help="Choose the feature you wanna use to train the model (e.g. -f kmer,snv means the model will only use these two features for learning). If not set, all three kinds of features will be used. (Default:all)")
     parser.add_argument('-t', '--train_mode', dest='train_mode', type=str,
                         help="If set to 1, then it means there are no test data and only training data exists in the input. (Default: 0).")
+    parser.add_argument('--val_ratio', dest='val_ratio', type=float, default=0.2,
+                        help="When '-t 1' is set, split the training data into train/validation using this fraction for validation (Default: 0.2).")
     parser.add_argument('-s', '--save_mode', dest='save_mode', type=str,
                         help="If set to 0, then the model with minimum val loss will be saved, otherwise, the model with best performance on val data will be saved in the output dir. (Default: 1).")
     parser.add_argument('-a', '--attention_weight', dest='attn_weight', type=str,
                         help="If set to 0, then will not output the attention weight between tokens. (Default: 1).")
     parser.add_argument('-o', '--outdir', dest='outdir', type=str,
                         help="Output directory of results. (Default: StrainAMR_fold_res)")
+    parser.add_argument('--batch_size', dest='batch_size', type=int,
+                        help="Batch size for training and evaluation. (Default: 20).")
+    parser.add_argument('--epochs', dest='epochs', type=int,
+                        help="Number of training epochs. (Default: 100).")
     args = parser.parse_args()
     indir = args.input_file
     tm=args.train_mode
+    val_ratio = args.val_ratio
     fused=args.fused
     sm=args.save_mode
     atw=args.attn_weight
     odir= args.outdir
+    global batch_size, epoch_num
     if not atw:
         atw=1
     else:
@@ -259,6 +268,10 @@ def main():
         tm=0
     else:
         tm=int(tm)
+    if args.batch_size:
+        batch_size = args.batch_size
+    if args.epochs:
+        epoch_num = args.epochs
     if not fused:
         fused='all'
         fnum=3
@@ -293,10 +306,49 @@ def main():
     x_train1,y_train,yl_train,token_size1,ls,sid_train=process_intsv(indir+'/strains_train_sentence_fs.txt',lss1)
     x_train2,y_train,yl_train,token_size2,ls,sid_train=process_intsv(indir+'/strains_train_pc_token_fs.txt',lss2)
     x_train3,y_train,yl_train,token_size3,ls,sid_train=process_intsv(indir+'/strains_train_kmer_token.txt',lss3)
-    if tm==0:
+
+    has_validation = False
+    create_validation_from_train = tm == 1
+    if create_validation_from_train:
+        if not 0 < val_ratio < 1:
+            raise ValueError("'--val_ratio' must be within (0, 1) when '-t 1' is specified.")
+        sid_train_array = np.array(sid_train)
+        (
+            x_train1,
+            x_val1,
+            x_train2,
+            x_val2,
+            x_train3,
+            x_val3,
+            y_train,
+            y_val,
+            sid_train,
+            sid_val,
+        ) = train_test_split(
+            x_train1,
+            x_train2,
+            x_train3,
+            y_train,
+            sid_train_array,
+            test_size=val_ratio,
+            stratify=y_train,
+            random_state=42,
+        )
+        sid_train = sid_train.tolist()
+        sid_val = sid_val.tolist()
+        has_validation = True
+        print(
+            f"Train/validation split enabled (-t 1). Validation ratio: {val_ratio:.2f}.",
+            flush=True,
+        )
+    elif tm == 0:
         x_val1,y_val,yl_val,token_size_val1,ls_val,sid_val=process_intsv(indir+'/strains_test_sentence_fs.txt',lss1)
         x_val2,y_val,yl_val,token_size_val2,ls_val,sid_val=process_intsv(indir+'/strains_test_pc_token_fs.txt',lss2)
         x_val3,y_val,yl_val,token_size_val3,ls_val,sid_val=process_intsv(indir+'/strains_test_kmer_token.txt',lss3)
+        has_validation = True
+    else:
+        y_val = None
+        sid_val = []
 
     tsize1=token_size1+2
     print('Token count_type1:',tsize1)
@@ -352,7 +404,7 @@ def main():
     x_train2=x_train2.astype(int)
     #x_val2=x_val2.astype(int)
     x_train3=x_train3.astype(int)
-    if tm==0:
+    if has_validation:
         x_val1=x_val1.astype(int)
         x_val2=x_val2.astype(int)
         x_val3=x_val3.astype(int)
@@ -364,13 +416,13 @@ def main():
     #f1_test=0
     model.to(device)
 
-    if tm==0:
+    if has_validation:
         x_val1=remove_new_ele(x_train1,x_val1)
         x_val2=remove_new_ele(x_train2,x_val2)
         x_val3=remove_new_ele(x_train3,x_val3)
 
     train_loader=return_batch(x_train1,x_train2,x_train3,y_train,flag=True)
-    if tm==0:
+    if has_validation:
         test_loader=return_batch(x_val1,x_val2,x_val3,y_val,flag=False)
     valid_losses = []
     if torch.cuda.device_count() > 1:
@@ -444,7 +496,12 @@ def main():
             print(name)
         exit()
         '''
-        if tm==0:
+        eval_fscore = None
+        eval_all_pred = []
+        eval_all_logit = []
+        eval_test_label = []
+        es_out = False
+        if has_validation:
             with torch.no_grad():
                 all_pred=[]
                 test_label=[]
@@ -482,6 +539,10 @@ def main():
             valid_loss = np.average(valid_losses)
             print(f'Validation set || epoch no. {epoch} || Validation Loss: {valid_loss:.4f} || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',flush=True)
             print(f'Validation set || epoch no. {epoch} || Validation Loss: {valid_loss:.4f} || accuracy: {acc} || precision: {precision} || recall: {recall} || fscore: {fscore} || AUC: {roc}',file=ol,flush=True)
+            eval_fscore = fscore
+            eval_all_pred = all_pred
+            eval_all_logit = all_logit
+            eval_test_label = test_label
             if sm==0:
                 es_out = early_stopping(valid_loss, model, models_dir, ol)
                 if early_stopping.early_stop:
@@ -489,23 +550,22 @@ def main():
                     break
 
         #if fscore>max_f1:
-        if sm==0:
-            if es_out:
-                #max_f1=fscore
-                    o2 = open(odir + '/output_sample_prob_val_loss.txt', 'w+')
-                    o2.write('Sample_Id\tLabel\tPred\tProb\n')
-                    c=0
-                    for e in test_label:
-                        o2.write(sid_val[c]+'\t'+str(e)+'\t'+str(all_pred[c])+'\t'+str(all_logit[c])+'\n')
-                        c+=1
-        if fscore>max_f1:
-            max_f1=fscore
+        if has_validation and sm==0 and es_out:
+            #max_f1=fscore
+            o2 = open(odir + '/output_sample_prob_val_loss.txt', 'w+')
+            o2.write('Sample_Id\tLabel\tPred\tProb\n')
+            c=0
+            for e in eval_test_label:
+                o2.write(sid_val[c]+'\t'+str(e)+'\t'+str(eval_all_pred[c])+'\t'+str(eval_all_logit[c])+'\n')
+                c+=1
+        if has_validation and eval_fscore is not None and eval_fscore>max_f1:
+            max_f1=eval_fscore
             torch.save(model.state_dict(), os.path.join(models_dir, "best_model_f1_score.pt"))
             o3 = open(os.path.join(logs_dir, 'output_sample_prob_val_best_f1.txt'), 'w+')
             o3.write('Sample_Id\tLabel\tPred\tProb\n')
             c=0
-            for e in test_label:
-                o3.write(sid_val[c]+'\t'+str(e)+'\t'+str(all_pred[c])+'\t'+str(all_logit[c])+'\n')
+            for e in eval_test_label:
+                o3.write(sid_val[c]+'\t'+str(e)+'\t'+str(eval_all_pred[c])+'\t'+str(eval_all_logit[c])+'\n')
                 c+=1
         if acc==1 and epoch>9:
             break
@@ -549,6 +609,10 @@ def main():
         'kmer': indir + '/shap/strains_train_kmer_token_shap.txt'
     }
     '''
+
+    if not has_validation:
+        print('No validation/test data available. Skipping interpretability export.', flush=True)
+        return
 
     shap_file_map = {}
     for key, filename in [

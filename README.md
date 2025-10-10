@@ -99,7 +99,7 @@ sh batch_train_3fold_exp.sh
 | Flag | Default | Description |
 | --- | --- | --- |
 | `-i`, `--input_file` | required | Directory containing test genome FASTA files |
-| `-l`, `--label_file` | required | Path to phenotype label file for the test data |
+| `-l`, `--label_file` | optional | Path to phenotype label file for the test data. When omitted, placeholder labels are generated automatically so unlabeled genomes can still be processed |
 | `-d`, `--drug` | required | Drug name to model; must match training data |
 | `-p`, `--pc` | `0` | Skip protein-cluster token generation when set to `1` |
 | `-s`, `--snv` | `0` | Skip SNV token generation when set to `1` |
@@ -113,10 +113,13 @@ sh batch_train_3fold_exp.sh
 | --- | --- | --- |
 | `-i`, `--input_file` | required | Directory produced by build scripts containing token files |
 | `-f`, `--feature_used` | `all` | Comma-separated list of features to use (`kmer`, `snv`, `pc`) |
-| `-t`, `--train_mode` | `0` | Set to `1` if only training data are provided |
+| `-t`, `--train_mode` | `0` | Set to `1` when only training data are provided; automatically creates a stratified train/validation split |
+| `--val_ratio` | `0.2` | Fraction of the data reserved for validation when `-t 1` is supplied |
 | `-s`, `--save_mode` | `1` | `0` saves model with minimum validation loss |
 | `-a`, `--attention_weight` | `1` | `0` disables saving attention matrices |
 | `-o`, `--outdir` | `StrainAMR_fold_res` | Directory for models, logs and SHAP outputs |
+| `--batch_size` | `20` | Batch size used during training and evaluation |
+| `--epochs` | `100` | Number of training epochs |
 
 ### `StrainAMR_model_predict.py`
 
@@ -126,6 +129,7 @@ sh batch_train_3fold_exp.sh
 | `-f`, `--feature_used` | `all` | Feature types to use (`kmer`, `snv`, `pc`) |
 | `-m`, `--model_PATH` | required | Directory containing pre-trained models |
 | `-o`, `--outdir` | `StrainAMR_fold_res` | Directory for logs, SHAP results and analysis outputs |
+| `--batch_size` | `20` | Batch size used for prediction and interpretability export |
 
 ## Output
 
@@ -149,8 +153,11 @@ sh batch_train_3fold_exp.sh
 ## New Features
 
 - `StrainAMR_build_train.py` and `StrainAMR_build_test.py` accept `--threads` to process genomes in parallel
+- `StrainAMR_build_test.py` can generate placeholder labels so unlabeled genomes can be scored without errors
 - Model training computes SHAP interaction values and maps token IDs back to genomic features for improved interpretability
+- `StrainAMR_model_train.py` supports automatic stratified train/validation splitting (when `-t 1` is supplied) and exposes validation ratio, batch size and epoch controls
 - SNV SHAP tables and attention-token reports include AMR gene family annotations derived from RGI outputs
+- `StrainAMR_model_predict.py` allows overriding the evaluation batch size from the command line
 
 ## Citation
 
