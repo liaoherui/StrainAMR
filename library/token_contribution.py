@@ -28,6 +28,8 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
+from library import utils
+
 
 def load_shap_top_tokens(path: str, top_n: int = 10) -> List[int]:
     """Load the top-N SHAP tokens from the given file.
@@ -102,6 +104,110 @@ def load_shap_annotations(path: str) -> Tuple[Dict[int, Dict[str, str]], List[st
             }
 
     return annotations, columns
+
+
+def _parse_feature_remain_annotations(path: str) -> Tuple[Dict[int, Dict[str, str]], List[str]]:
+    annotations: Dict[int, Dict[str, str]] = {}
+    columns: List[str] = []
+    if not path or not os.path.exists(path):
+        return annotations, columns
+
+    with open(path, "r", encoding="utf-8") as handle:
+        header = handle.readline().strip().split("\t")
+        if not header or "Feature_ID" not in header:
+            return annotations, columns
+
+        try:
+            token_idx = header.index("Feature_ID")
+        except ValueError:
+            return annotations, columns
+
+        desired = [col for col in ("Feature", "AMR_Gene_Family") if col in header]
+        if not desired:
+            return annotations, columns
+
+        indices = {col: header.index(col) for col in desired}
+        columns = desired
+
+        for line in handle:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) <= token_idx:
+                continue
+            token_str = parts[token_idx].strip()
+            try:
+                token_id = int(token_str)
+            except ValueError:
+                continue
+            annotations[token_id] = {
+                col: parts[idx].strip() if idx < len(parts) else ""
+                for col, idx in indices.items()
+            }
+
+    return annotations, columns
+
+
+def _parse_token_feature_mapping(path: str) -> Tuple[Dict[int, Dict[str, str]], List[str]]:
+    annotations: Dict[int, Dict[str, str]] = {}
+    columns = ["Feature"]
+    if not path or not os.path.exists(path):
+        return annotations, []
+
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 2:
+                continue
+            feature = parts[0].strip()
+            token_str = parts[-1].strip()
+            try:
+                token_id = int(token_str)
+            except ValueError:
+                continue
+            annotations[token_id] = {"Feature": feature}
+
+    return annotations, columns
+
+
+def load_additional_annotations(
+    paths: Optional[Sequence[str]],
+) -> Tuple[Dict[int, Dict[str, str]], List[str]]:
+    combined: Dict[int, Dict[str, str]] = {}
+    columns: List[str] = []
+    if not paths:
+        return combined, columns
+
+    for path in paths:
+        if not path or not os.path.exists(path):
+            continue
+        fname = os.path.basename(path)
+        if "feature_remain" in fname:
+            parsed, cols = _parse_feature_remain_annotations(path)
+        elif "token_id" in fname:
+            parsed, cols = _parse_token_feature_mapping(path)
+        else:
+            # Fallback to general token mapping using utility helper
+            mapping = utils.load_token_mappings([path])
+            parsed = {}
+            cols = ["Feature"] if mapping else []
+            for token_str, feature in mapping.items():
+                try:
+                    token_id = int(token_str)
+                except ValueError:
+                    continue
+                parsed[token_id] = {"Feature": feature}
+
+        if not parsed or not cols:
+            continue
+
+        for col in cols:
+            if col not in columns:
+                columns.append(col)
+
+        for token_id, meta in parsed.items():
+            entry = combined.setdefault(token_id, {})
+            entry.update(meta)
+
+    return combined, columns
 
 
 @dataclass
@@ -492,6 +598,7 @@ def export_token_contributions(
     subset_sizes: Sequence[int] = (2,),
     subset_sample_size: int = 32,
     sample_ids: Optional[Sequence[str]] = None,
+    annotation_file_map: Optional[Mapping[str, Sequence[str]]] = None,
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
 
@@ -525,6 +632,14 @@ def export_token_contributions(
         shap_annotations[label] = annotations
         shap_annotation_cols[label] = cols
 
+    additional_annotations: Dict[str, Dict[int, Dict[str, str]]] = {}
+    additional_cols: Dict[str, List[str]] = {}
+    for label in feature_labels:
+        files = annotation_file_map.get(label, []) if annotation_file_map else []
+        annotations, cols = load_additional_annotations(files)
+        additional_annotations[label] = annotations
+        additional_cols[label] = cols
+
     for label in feature_labels:
         if not shap_sets.get(label):
             continue
@@ -534,7 +649,15 @@ def export_token_contributions(
         subset_file = os.path.join(output_dir, f"{label}_token_subset_delta.tsv")
 
         annotations = shap_annotations.get(label, {})
-        annot_cols = shap_annotation_cols.get(label, [])
+        extra_annotations = additional_annotations.get(label, {})
+        extra_cols = additional_cols.get(label, [])
+
+        seen_cols: List[str] = []
+        for col_list in (extra_cols, shap_annotation_cols.get(label, [])):
+            for col in col_list:
+                if col not in seen_cols:
+                    seen_cols.append(col)
+        annot_cols = seen_cols
 
         with open(token_file, "w", encoding="utf-8") as handle:
             header = ["Token_ID", "GradInput"] + annot_cols
@@ -544,7 +667,20 @@ def export_token_contributions(
             ):
                 row = [str(token_id), str(score)]
                 token_meta = annotations.get(token_id, {})
-                row.extend(token_meta.get(col, "") for col in annot_cols)
+                extra_meta = (
+                    extra_annotations.get(token_id, {}) if isinstance(extra_annotations, dict) else {}
+                )
+
+                def resolve_value(col: str) -> str:
+                    for source in (extra_meta, token_meta):
+                        if not source:
+                            continue
+                        value = source.get(col, "")
+                        if value != "":
+                            return value
+                    return ""
+
+                row.extend(resolve_value(col) for col in annot_cols)
                 handle.write("\t".join(row) + "\n")
 
         with open(pair_file, "w", encoding="utf-8") as handle:
@@ -560,8 +696,29 @@ def export_token_contributions(
                 if annot_cols:
                     meta_a = annotations.get(token_a, {})
                     meta_b = annotations.get(token_b, {})
-                    row.extend(meta_a.get(col, "") for col in annot_cols)
-                    row.extend(meta_b.get(col, "") for col in annot_cols)
+                    extra_a = (
+                        extra_annotations.get(token_a, {}) if isinstance(extra_annotations, dict) else {}
+                    )
+                    extra_b = (
+                        extra_annotations.get(token_b, {}) if isinstance(extra_annotations, dict) else {}
+                    )
+
+                    def resolve_pair(meta_primary: Dict[str, str], meta_extra: Dict[str, str]) -> List[str]:
+                        values: List[str] = []
+                        for col in annot_cols:
+                            value = ""
+                            for source in (meta_extra, meta_primary):
+                                if not source:
+                                    continue
+                                val = source.get(col, "")
+                                if val != "":
+                                    value = val
+                                    break
+                            values.append(value)
+                        return values
+
+                    row.extend(resolve_pair(meta_a, extra_a))
+                    row.extend(resolve_pair(meta_b, extra_b))
                 handle.write("\t".join(row) + "\n")
 
         with open(subset_file, "w", encoding="utf-8") as handle:
@@ -576,10 +733,23 @@ def export_token_contributions(
                 row = [subset_str, str(score)]
                 if annot_cols:
                     for col in annot_cols:
-                        col_values = [
-                            annotations.get(token_id, {}).get(col, "")
-                            for token_id in subset_key
-                        ]
+                        col_values: List[str] = []
+                        for token_id in subset_key:
+                            extra_meta = (
+                                extra_annotations.get(token_id, {})
+                                if isinstance(extra_annotations, dict)
+                                else {}
+                            )
+                            shap_meta = annotations.get(token_id, {})
+                            value = ""
+                            for source in (extra_meta, shap_meta):
+                                if not source:
+                                    continue
+                                val = source.get(col, "")
+                                if val != "":
+                                    value = val
+                                    break
+                            col_values.append(value)
                         row.append(";".join(col_values))
                 handle.write("\t".join(row) + "\n")
 
@@ -603,8 +773,24 @@ def export_token_contributions(
                         scores.items(), key=lambda kv: abs(kv[1]), reverse=True
                     ):
                         token_meta = annotations.get(token_id, {})
+                        extra_meta = (
+                            extra_annotations.get(token_id, {})
+                            if isinstance(extra_annotations, dict)
+                            else {}
+                        )
+
                         row = [sample.sample_id, str(token_id), str(score)]
-                        row.extend(token_meta.get(col, "") for col in annot_cols)
+
+                        def resolve_value(col: str) -> str:
+                            for source in (extra_meta, token_meta):
+                                if not source:
+                                    continue
+                                value = source.get(col, "")
+                                if value != "":
+                                    return value
+                            return ""
+
+                        row.extend(resolve_value(col) for col in annot_cols)
                         handle.write("\t".join(row) + "\n")
 
             with open(pair_sample_file, "w", encoding="utf-8") as handle:
@@ -622,8 +808,33 @@ def export_token_contributions(
                         if annot_cols:
                             meta_a = annotations.get(token_a, {})
                             meta_b = annotations.get(token_b, {})
-                            row.extend(meta_a.get(col, "") for col in annot_cols)
-                            row.extend(meta_b.get(col, "") for col in annot_cols)
+                            extra_a = (
+                                extra_annotations.get(token_a, {})
+                                if isinstance(extra_annotations, dict)
+                                else {}
+                            )
+                            extra_b = (
+                                extra_annotations.get(token_b, {})
+                                if isinstance(extra_annotations, dict)
+                                else {}
+                            )
+
+                            def resolve_pair(meta_primary: Dict[str, str], meta_extra: Dict[str, str]) -> List[str]:
+                                values: List[str] = []
+                                for col in annot_cols:
+                                    value = ""
+                                    for source in (meta_extra, meta_primary):
+                                        if not source:
+                                            continue
+                                        val = source.get(col, "")
+                                        if val != "":
+                                            value = val
+                                            break
+                                    values.append(value)
+                                return values
+
+                            row.extend(resolve_pair(meta_a, extra_a))
+                            row.extend(resolve_pair(meta_b, extra_b))
                         handle.write("\t".join(row) + "\n")
 
             with open(subset_sample_file, "w", encoding="utf-8") as handle:
@@ -640,10 +851,23 @@ def export_token_contributions(
                         row = [sample.sample_id, subset_str, str(score)]
                         if annot_cols:
                             for col in annot_cols:
-                                col_values = [
-                                    annotations.get(token_id, {}).get(col, "")
-                                    for token_id in subset_key
-                                ]
+                                col_values: List[str] = []
+                                for token_id in subset_key:
+                                    extra_meta = (
+                                        extra_annotations.get(token_id, {})
+                                        if isinstance(extra_annotations, dict)
+                                        else {}
+                                    )
+                                    shap_meta = annotations.get(token_id, {})
+                                    value = ""
+                                    for source in (extra_meta, shap_meta):
+                                        if not source:
+                                            continue
+                                        val = source.get(col, "")
+                                        if val != "":
+                                            value = val
+                                            break
+                                    col_values.append(value)
                                 row.append(";".join(col_values))
                         handle.write("\t".join(row) + "\n")
 

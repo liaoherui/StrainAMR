@@ -624,6 +624,14 @@ def main():
         fallback = os.path.join(indir, filename)
         shap_file_map[key] = primary if os.path.exists(primary) else fallback
 
+    annotation_file_map = {
+        'snv': [os.path.join(indir, 'feature_remain_graph.txt')],
+        'pc': [os.path.join(indir, 'feature_remain_pc.txt')],
+        'kmer': [os.path.join(indir, 'kmer_token_id.txt')],
+    }
+
+    relevant_annotations = {label: annotation_file_map.get(label, []) for label in feature_labels}
+
     export_token_contributions(
         model,
         feature_arrays,
@@ -636,6 +644,7 @@ def main():
         top_k_pairs=20,
         subset_sizes=(2, 3),
         subset_sample_size=32,
+        annotation_file_map=relevant_annotations,
     )
 
 

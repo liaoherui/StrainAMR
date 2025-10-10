@@ -444,14 +444,17 @@ def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit
             work_dir+'/feature_remain_graph.txt',
             work_dir+'/strains_train_sentence_fs.txt',
             feature_limit,
-            sentence_limit
+            sentence_limit,
+            mapping_files=[work_dir+'/node_token_match.txt'],
+            rgi_dir=work_dir+'/rgi_train'
         )
         sef(
             work_dir+'/strains_train_pc_token.txt',
             work_dir+'/feature_remain_pc.txt',
             work_dir+'/strains_train_pc_token_fs.txt',
             feature_limit,
-            sentence_limit
+            sentence_limit,
+            mapping_files=[work_dir+'/pc_matches.txt']
         )
 
         #c+=1
