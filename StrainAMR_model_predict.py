@@ -519,7 +519,7 @@ def main():
             '''
 
         o2 = open(os.path.join(logs_dir, 'output_sample_prob_predict.txt'), 'w+')
-        o2.write('Sample_ID\tLable\tPred\tProb\n')
+        o2.write('Sample_ID\tLabel\tPred\tProb\n')
         c=0
         for e in test_label:
             try:
