@@ -56,6 +56,30 @@ echo "export PATH=\$PATH:/path/to/StrainAMR/PhenotypeSeeker/.PSenv/bin" >> ~/.ba
 source ~/.bashrc
 ```
 
+## Troubleshooting
+
+### `seqwish` exits with `Illegal instruction`
+
+The pre-built `seqwish` binary distributed via Conda is compiled with AVX2 instructions. On older CPUs, the binary may crash with an `Illegal instruction (core dumped)` error. If you encounter the error when running `StrainAMR_build_train.py` and notice that no files are generated under `/your_work_path/GFA_train_Minimap2/`, the issue likely originates from seqwish.
+
+To resolve it:
+
+Use `sinfo` (or your cluster’s equivalent command) to list available partitions and choose one associated with newer CPUs. If you’re unsure, test them one by one.
+
+For example, if sinfo lists partitions （see column `PARTITION`） `cpu1`, `cpu2`, and `cpu3`, a job script using 
+
+```
+#SBATCH -p cpu1
+```
+
+might fail due to the older CPUs, while switching to
+
+```
+#SBATCH -p cpu2
+```
+may work. If not, try `#SBATCH -p cpu3`. Do this until it works! Reminder: You may add `-k 1 -p 1` when run  `StrainAMR_build_train.py` to skip these two steps if you already got features of k-mers and pcs.
+
+
 ## Quick Start
 
 Check the command-line interfaces:
