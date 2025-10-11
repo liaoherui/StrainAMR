@@ -127,8 +127,8 @@ def sef(
         feature_id=r[0]
         feature_name=utils.token_to_feature(feature_id,token_map)
         amr_family=rgi_map.get(feature_name,'NA') if rgi_map else 'NA'
-        pval,chi2=stats.get(feature_id,(dr[feature_id],0.0))
-        row=[str(c),str(feature_id),feature_name,amr_family,str(pval),str(chi2)]
+        pval,chi2_stat=stats.get(feature_id,(dr[feature_id],0.0))
+        row=[str(c),str(feature_id),feature_name,amr_family,str(pval),str(chi2_stat)]
         o.write('\t'.join(row)+'\n')
         dused[r[0]]=''
         c+=1
