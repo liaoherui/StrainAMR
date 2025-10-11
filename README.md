@@ -60,7 +60,9 @@ source ~/.bashrc
 
 ### `seqwish` exits with `Illegal instruction`
 
-The pre-built `seqwish` binary distributed via Conda is compiled with AVX2 instructions. On older CPUs, the binary may crash with an `Illegal instruction (core dumped)` error. **If you encounter the error when running `StrainAMR_build_train.py` and notice that no files are generated under `/your_work_path/GFA_train_Minimap2/`**, the issue likely originates from seqwish.
+The pre-built `seqwish` binary distributed via Conda is compiled with AVX2 instructions. On older CPUs, the binary may crash with an `Illegal instruction (core dumped)` error. 
+
+-  **If you encounter the error when running `StrainAMR_build_train.py` and notice that no files are generated under `/your_work_path/GFA_train_Minimap2/`**, the issue likely originates from seqwish.
 
 To resolve it:
 
