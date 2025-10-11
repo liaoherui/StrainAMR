@@ -644,6 +644,7 @@ def main():
         top_k_pairs=20,
         subset_sizes=(2, 3),
         subset_sample_size=32,
+        sample_ids=sid_train,
         annotation_file_map=relevant_annotations,
     )
 
