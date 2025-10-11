@@ -58,7 +58,7 @@ source ~/.bashrc
 
 ## Troubleshooting
 
-### `seqwish` exits with `Illegal instruction`
+### `seqwish` exits with `Illegal instruction` (for jobs submitted by slurm)
 
 The pre-built `seqwish` binary distributed via Conda is compiled with AVX2 instructions. On older CPUs, the binary may crash with an `Illegal instruction (core dumped)` error. 
 
