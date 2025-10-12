@@ -329,6 +329,9 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=
     label=odir+'/train_label.txt'
     shap_dir = odir + '/shap'
     build_dir(shap_dir)
+    shap_sample_file = os.path.join(shap_dir, 'test_samples.tsv')
+    with open(shap_sample_file, 'w') as shap_fh:
+        shap_fh.write('Sample_ID\n')
     dr={}
     val=[]
     for filename in os.listdir(intest):
@@ -338,6 +341,10 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=
         #exit()
         dr[pre]=intest+'/'+filename
         val.append(pre)
+
+    with open(shap_sample_file, 'a') as shap_fh:
+        for sid in sorted(val):
+            shap_fh.write(f"{sid}\n")
 
     provided_label_file = bool(label2)
     if provided_label_file:
