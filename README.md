@@ -69,7 +69,7 @@ To resolve it:
 
 Use `sinfo` (or your cluster’s equivalent command) to list available partitions and choose one associated with newer CPUs. If you’re unsure, test them one by one.
 
-For example, if sinfo lists partitions （see column `PARTITION`） `cpu1`, `cpu2`, and `cpu3`, a job script using 
+For example, if sinfo lists partitions (see column `PARTITION`） `cpu1`, `cpu2`, and `cpu3`, a job script using 
 
 ```
 #SBATCH -p cpu1
