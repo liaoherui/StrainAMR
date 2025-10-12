@@ -490,14 +490,24 @@ def main():
     parser.add_argument('--shap-top-k', dest='shap_top_k', type=int,
                         help="Number of top positive/negative features to record per sample for SHAP outputs (default: 10).",
                         default=10)
+    parser.add_argument('--db', dest='db_dir', type=str,
+                        help="Directory containing the training database artifacts (default: use the input directory).")
     args = parser.parse_args()
-    indir = args.input_file
+    if not args.input_file:
+        raise ValueError('Please provide the directory with test features via -i/--input_file.')
+    indir = os.path.abspath(args.input_file)
     #tm=args.train_mode
     fused=args.fused
     #sm=args.save_model
     #atw=args.attn_weight
     odir= args.outdir
     model_PATH=args.model_PATH
+    train_dir = args.db_dir if args.db_dir else indir
+    train_dir = os.path.abspath(train_dir)
+    if not os.path.isdir(train_dir):
+        raise FileNotFoundError(f"Training database directory not found: {train_dir}")
+    if not os.path.isdir(indir):
+        raise FileNotFoundError(f"Input feature directory not found: {indir}")
     global batch_size
     # if not atw:
     #     atw=1
@@ -518,6 +528,7 @@ def main():
         fnum=parsef(fused)
     if not odir:
         odir='StrainAMR_fold_res'
+    odir = os.path.abspath(odir)
 
     if not os.path.exists(odir):
         os.makedirs(odir)
@@ -527,6 +538,9 @@ def main():
     input_shap_dir = os.path.join(indir, 'shap')
     if not os.path.isdir(input_shap_dir):
         input_shap_dir = ""
+    train_shap_dir = os.path.join(train_dir, 'shap')
+    if not os.path.isdir(train_shap_dir):
+        train_shap_dir = ""
 
     logs_dir = os.path.join(odir, 'logs')
     analysis_dir = os.path.join(odir, 'analysis')
@@ -546,7 +560,11 @@ def main():
         search_roots = [shap_dir]
         if input_shap_dir:
             search_roots.append(input_shap_dir)
+        if train_shap_dir:
+            search_roots.append(train_shap_dir)
         search_roots.append(indir)
+        if train_dir not in search_roots:
+            search_roots.append(train_dir)
         for rel_path in relative_paths:
             if not rel_path:
                 continue
@@ -558,11 +576,11 @@ def main():
     #lss1=765
     #lss2=536
     #lss3=1000
-    lss1,lss2,lss3=load_token_len(indir)
+    lss1,lss2,lss3=load_token_len(train_dir)
 
-    x_train1,y_train,yl_train,token_size1,ls,sid_train=process_intsv(indir+'/strains_train_sentence_fs.txt',lss1)
-    x_train2,y_train,yl_train,token_size2,ls,sid_train=process_intsv(indir+'/strains_train_pc_token_fs.txt',lss2)
-    x_train3,y_train,yl_train,token_size3,ls,sid_train=process_intsv(indir+'/strains_train_kmer_token.txt',lss3)
+    x_train1,y_train,yl_train,token_size1,ls,sid_train=process_intsv(train_dir+'/strains_train_sentence_fs.txt',lss1)
+    x_train2,y_train,yl_train,token_size2,ls,sid_train=process_intsv(train_dir+'/strains_train_pc_token_fs.txt',lss2)
+    x_train3,y_train,yl_train,token_size3,ls,sid_train=process_intsv(train_dir+'/strains_train_kmer_token.txt',lss3)
 
     x_val1,y_val,yl_val,token_size_val1,ls_val,sid_val=process_intsv(indir+'/strains_test_sentence_fs.txt',lss1)
     x_val2,y_val,yl_val,token_size_val2,ls_val,sid_val=process_intsv(indir+'/strains_test_pc_token_fs.txt',lss2)
@@ -735,30 +753,30 @@ def main():
             pair_kmer = os.path.join(shap_dir, 'strains_test_kmer_interaction.txt')
             '''
             shap_feature_select_withcls.shap_select(
-                pc_file, pc_shap, [os.path.join(indir, 'pc_matches.txt')]
+                pc_file, pc_shap, [os.path.join(train_dir, 'pc_matches.txt')]
             )
             shap_feature_select_withcls.shap_select(
-                snv_file, snv_shap, [os.path.join(indir, 'node_token_match.txt')],
-                rgi_dir=os.path.join(indir, 'rgi_train')
+                snv_file, snv_shap, [os.path.join(train_dir, 'node_token_match.txt')],
+                rgi_dir=os.path.join(train_dir, 'rgi_train')
             )
             shap_feature_select_withcls.shap_select(
-                kmer_file, kmer_shap, [os.path.join(indir, 'kmer_token_id.txt')]
+                kmer_file, kmer_shap, [os.path.join(train_dir, 'kmer_token_id.txt')]
             )
             shap_feature_select_withcls.shap_interaction_select(
                 pc_file,
                 pair_pc,
-                map_files=[os.path.join(indir, 'pc_matches.txt')],
+                map_files=[os.path.join(train_dir, 'pc_matches.txt')],
             )
             shap_feature_select_withcls.shap_interaction_select(
                 snv_file,
                 pair_snv,
-                map_files=[os.path.join(indir, 'node_token_match.txt')],
-                rgi_dir=os.path.join(indir, 'rgi_train'),
+                map_files=[os.path.join(train_dir, 'node_token_match.txt')],
+                rgi_dir=os.path.join(train_dir, 'rgi_train'),
             )
             shap_feature_select_withcls.shap_interaction_select(
                 kmer_file,
                 pair_kmer,
-                map_files=[os.path.join(indir, 'kmer_token_id.txt')],
+                map_files=[os.path.join(train_dir, 'kmer_token_id.txt')],
             )
 
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
@@ -768,7 +786,7 @@ def main():
                 'pc_predict',
                 pc_shap,
                 pair_pc,
-                map_files=[os.path.join(indir, 'pc_matches.txt')],
+                map_files=[os.path.join(train_dir, 'pc_matches.txt')],
 
             )
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
@@ -778,8 +796,8 @@ def main():
                 'graph_predict',
                 snv_shap,
                 pair_snv,
-                map_files=[os.path.join(indir, 'node_token_match.txt')],
-                rgi_dir=os.path.join(indir, 'rgi_train'),
+                map_files=[os.path.join(train_dir, 'node_token_match.txt')],
+                rgi_dir=os.path.join(train_dir, 'rgi_train'),
 
             )
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
@@ -789,7 +807,7 @@ def main():
                 'kmer_predict',
                 kmer_shap,
                 pair_kmer,
-                map_files=[os.path.join(indir, 'kmer_token_id.txt')],
+                map_files=[os.path.join(train_dir, 'kmer_token_id.txt')],
 
             )
             '''
@@ -801,14 +819,14 @@ def main():
         }
         mapping_file_map = {
             'snv': [
-                os.path.join(indir, 'node_token_match.txt'),
-                os.path.join(indir, 'feature_remain_graph.txt'),
+                os.path.join(train_dir, 'node_token_match.txt'),
+                os.path.join(train_dir, 'feature_remain_graph.txt'),
             ],
             'pc': [
-                os.path.join(indir, 'pc_matches.txt'),
-                os.path.join(indir, 'feature_remain_pc.txt'),
+                os.path.join(train_dir, 'pc_matches.txt'),
+                os.path.join(train_dir, 'feature_remain_pc.txt'),
             ],
-            'kmer': [os.path.join(indir, 'kmer_token_id.txt')],
+            'kmer': [os.path.join(train_dir, 'kmer_token_id.txt')],
         }
         shap_outputs = generate_test_shap_reports(
             feature_file_map,
@@ -819,7 +837,7 @@ def main():
             shap_dir,
             shap_top_k,
             mapping_file_map,
-            rgi_dir=os.path.join(indir, 'rgi_train'),
+            rgi_dir=os.path.join(train_dir, 'rgi_train'),
         )
 
         o2 = open(os.path.join(logs_dir, 'output_sample_prob_predict.txt'), 'w+')
@@ -847,25 +865,25 @@ def main():
                 shap_outputs.get('snv'),
                 os.path.join(shap_dir, 'strains_test_sentence_fs_shap.txt'),
                 os.path.join(input_shap_dir, 'strains_test_sentence_fs_shap.txt') if input_shap_dir else "",
-                os.path.join(shap_dir, 'strains_train_sentence_fs_shap.txt'),
+                os.path.join(train_shap_dir, 'strains_train_sentence_fs_shap.txt') if train_shap_dir else "",
                 os.path.join(input_shap_dir, 'strains_train_sentence_fs_shap.txt') if input_shap_dir else "",
-                os.path.join(indir, 'strains_train_sentence_fs_shap.txt'),
+                os.path.join(train_dir, 'strains_train_sentence_fs_shap.txt'),
             ],
             'pc': [
                 shap_outputs.get('pc'),
                 os.path.join(shap_dir, 'strains_test_pc_token_fs_shap.txt'),
                 os.path.join(input_shap_dir, 'strains_test_pc_token_fs_shap.txt') if input_shap_dir else "",
-                os.path.join(shap_dir, 'strains_train_pc_token_fs_shap.txt'),
+                os.path.join(train_shap_dir, 'strains_train_pc_token_fs_shap.txt') if train_shap_dir else "",
                 os.path.join(input_shap_dir, 'strains_train_pc_token_fs_shap.txt') if input_shap_dir else "",
-                os.path.join(indir, 'strains_train_pc_token_fs_shap.txt'),
+                os.path.join(train_dir, 'strains_train_pc_token_fs_shap.txt'),
             ],
             'kmer': [
                 shap_outputs.get('kmer'),
                 os.path.join(shap_dir, 'strains_test_kmer_token_shap.txt'),
                 os.path.join(input_shap_dir, 'strains_test_kmer_token_shap.txt') if input_shap_dir else "",
-                os.path.join(shap_dir, 'strains_train_kmer_token_shap.txt'),
+                os.path.join(train_shap_dir, 'strains_train_kmer_token_shap.txt') if train_shap_dir else "",
                 os.path.join(input_shap_dir, 'strains_train_kmer_token_shap.txt') if input_shap_dir else "",
-                os.path.join(indir, 'strains_train_kmer_token_shap.txt'),
+                os.path.join(train_dir, 'strains_train_kmer_token_shap.txt'),
             ],
         }
         for key, candidates in shap_candidates.items():
@@ -887,9 +905,9 @@ def main():
                 feature_tensors.append(torch.from_numpy(x_val3))
 
             annotation_file_map = {
-                'snv': [os.path.join(indir, 'feature_remain_graph.txt')],
-                'pc': [os.path.join(indir, 'feature_remain_pc.txt')],
-                'kmer': [os.path.join(indir, 'kmer_token_id.txt')],
+                'snv': [os.path.join(train_dir, 'feature_remain_graph.txt')],
+                'pc': [os.path.join(train_dir, 'feature_remain_pc.txt')],
+                'kmer': [os.path.join(train_dir, 'kmer_token_id.txt')],
             }
             relevant_annotations = {
                 label: annotation_file_map.get(label, []) for label in feature_labels
