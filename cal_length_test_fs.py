@@ -280,12 +280,13 @@ def scan_length_fs(odir):
     ls3=cal_len(odir+'/strains_train_kmer_token.txt',odir+'/strains_test_kmer_token.txt')
     o.write(str(ls1)+'\t'+str(ls2)+'\t'+str(ls3)+'\n')
 
-def scan_length_fs_shap(odir):
+def scan_length_fs_shap(odir, train_dir=None):
     o=open(odir+'/longest_len_fs_shap.txt','w+')
     o.write('Graph\tPC\tKmer\n')
-    ls1=cal_len(odir+'/strains_train_sentence_fs_shap_filter.txt',odir+'/strains_test_sentence_fs_shap_filter.txt')
-    ls2=cal_len(odir+'/strains_train_pc_token_fs_shap_filter.txt',odir+'/strains_test_pc_token_fs_shap_filter.txt')
-    ls3=cal_len(odir+'/strains_train_kmer_token_shap_filter.txt',odir+'/strains_test_kmer_token_shap_filter.txt')
+    train_root = train_dir if train_dir else odir
+    ls1=cal_len(train_root+'/strains_train_sentence_fs_shap_filter.txt',odir+'/strains_test_sentence_fs_shap_filter.txt')
+    ls2=cal_len(train_root+'/strains_train_pc_token_fs_shap_filter.txt',odir+'/strains_test_pc_token_fs_shap_filter.txt')
+    ls3=cal_len(train_root+'/strains_train_kmer_token_shap_filter.txt',odir+'/strains_test_kmer_token_shap_filter.txt')
     o.write(str(ls1)+'\t'+str(ls2)+'\t'+str(ls3)+'\n')
 
 

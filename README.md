@@ -9,6 +9,7 @@ StrainAMR is a learning-based framework for predicting antimicrobial resistance 
 - **Parallel genome processing** with configurable thread count
 - **Token-to-feature mapping** to translate model inputs back to genes, k‑mers and SNVs
 - **RGI-informed SNV annotation** providing AMR gene family context in SHAP outputs
+- **Reusable training databases** so test builds and predictions can target fresh output folders without duplicating assets
 
 ## Installation (Linux/Ubuntu)
 
@@ -131,7 +132,8 @@ sh batch_train_3fold_exp.sh
 | `-s`, `--snv` | `0` | Skip SNV token generation when set to `1` |
 | `-k`, `--kmer` | `0` | Skip k-mer token generation when set to `1` |
 | `-t`, `--threads` | `1` | Number of parallel worker processes |
-| `-o`, `--outdir` | required | Output directory; should match training output directory |
+| `-o`, `--outdir` | required | Output directory for test feature files |
+| `--db` | optional | Path to an existing training database; when provided, enables writing test features to a separate directory |
 
 ### `StrainAMR_model_train.py`
 
@@ -156,6 +158,7 @@ sh batch_train_3fold_exp.sh
 | `-m`, `--model_PATH` | required | Directory containing pre-trained models |
 | `-o`, `--outdir` | `StrainAMR_fold_res` | Directory for logs, SHAP results and analysis outputs |
 | `--batch_size` | `20` | Batch size used for prediction and interpretability export |
+| `--db` | optional | Path to the training database containing token mappings and SHAP references (defaults to `--input_file`) |
 
 ## Output
 
@@ -184,6 +187,7 @@ sh batch_train_3fold_exp.sh
 - `StrainAMR_model_train.py` supports automatic stratified train/validation splitting (when `-t 1` is supplied) and exposes validation ratio, batch size and epoch controls
 - SNV SHAP tables and attention-token reports include AMR gene family annotations derived from RGI outputs
 - `StrainAMR_model_predict.py` allows overriding the evaluation batch size from the command line
+- Test feature generation and prediction can reuse an existing training database while keeping new artifacts in user-defined directories
 
 ## Citation
 
