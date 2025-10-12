@@ -9,7 +9,7 @@ StrainAMR is a learning-based framework for predicting antimicrobial resistance 
 - **Parallel genome processing** with configurable thread count
 - **Token-to-feature mapping** to translate model inputs back to genes, k‑mers and SNVs
 - **RGI-informed SNV annotation** providing AMR gene family context in SHAP outputs
-- **Reusable training databases** so test builds and predictions can target fresh output folders without duplicating assets
+- **Reusable training databases** Prebuilt databases for multiple species/antibiotics are provided for new predictions
 
 ## Installation (Linux/Ubuntu)
 
