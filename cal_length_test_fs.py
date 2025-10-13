@@ -270,14 +270,15 @@ def cal_len(infile1,infile2):
             ms=token_count
     return ms
 
-def scan_length_fs(odir):
+def scan_length_fs(odir, train_dir=None):
     o=open(odir+'/longest_len_fs.txt','w+')
     o.write('Graph\tPC\tKmer\n')
+    train_root = train_dir if train_dir else odir
     #for filename in os.listdir(odir):
     #if not re.search('Fold',filename):continue
-    ls1=cal_len(odir+'/strains_train_sentence_fs.txt',odir+'/strains_test_sentence_fs.txt')
-    ls2=cal_len(odir+'/strains_train_pc_token_fs.txt',odir+'/strains_test_pc_token_fs.txt')
-    ls3=cal_len(odir+'/strains_train_kmer_token.txt',odir+'/strains_test_kmer_token.txt')
+    ls1=cal_len(train_root+'/strains_train_sentence_fs.txt',odir+'/strains_test_sentence_fs.txt')
+    ls2=cal_len(train_root+'/strains_train_pc_token_fs.txt',odir+'/strains_test_pc_token_fs.txt')
+    ls3=cal_len(train_root+'/strains_train_kmer_token.txt',odir+'/strains_test_kmer_token.txt')
     o.write(str(ls1)+'\t'+str(ls2)+'\t'+str(ls3)+'\n')
 
 def scan_length_fs_shap(odir, train_dir=None):

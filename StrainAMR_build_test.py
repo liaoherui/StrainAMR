@@ -542,7 +542,7 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=
 
         #c+=1
     scan_length(work_dir,train_dir)
-    #scan_length_fs(odir)
+    scan_length_fs(work_dir,train_dir)
     scan_length_fs_shap(shap_dir,train_shap_dir)
 
 
