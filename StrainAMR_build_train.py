@@ -3,6 +3,8 @@ import os
 import sys
 import argparse
 import numpy as np
+import shutil
+from sample_ids import index_genomes, sample_id_from_filename, validate_label_genomes
 from extract_seq_for_graph import extract
 from build_graph_batch_minimap2 import build
 from align_genome_to_graph import align
@@ -62,11 +64,23 @@ def copy_genome(gdir,index,odir,t):
     else:
         bfix='txt'
     for i in index:
-        os.system('cp '+gdir+'/'+i+'.'+bfix+' '+odir)
+        src = os.path.join(gdir, i + '.' + bfix)
+        if not os.path.exists(src):
+            raise FileNotFoundError(
+                f"{t.capitalize()} file not found for sample {i}: {src}. "
+                "Check whether genome filenames match IDs in the label file."
+            )
+        shutil.copy2(src, odir)
 
 def copy_protein(pdir,index,odir):
     for i in index:
-        os.system('cp '+pdir+'/'+i+'.faa '+odir)
+        src = os.path.join(pdir, i + '.faa')
+        if not os.path.exists(src):
+            raise FileNotFoundError(
+                f"Protein file not found for sample {i}: {src}. "
+                "Check whether genome filenames match IDs in the label file."
+            )
+        shutil.copy2(src, odir)
 def stat_rig(indir):
     arr=[]
     for filename in os.listdir(indir):
@@ -130,7 +144,7 @@ def run_cdhit(ptrain,work_dir):
 def output_pc_token_file(d,pdir,label,ofile,idx):
     dr={} # Strain prefix -> Tokens string
     for filename in os.listdir(pdir):
-        pre=os.path.splitext(filename)[0]
+        pre=sample_id_from_filename(filename)
         if pre not in dr:
             dr[pre]=[]
         f=open(pdir+'/'+filename,'r')
@@ -236,7 +250,7 @@ def run_ps(train,ingenome,label,drug,work_dir):
     dtrain={} # Pre -> Genome dir
     #dval={}
     for filename in os.listdir(ingenome):
-        pre=os.path.splitext(filename)[0]
+        pre=sample_id_from_filename(filename)
         if pre in train:
             dtrain[pre]=ingenome+'/'+filename
         '''
@@ -328,13 +342,8 @@ def scan_length(odir):
 
 
 def run(ingenome,label,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=None,sentence_limit=None):
-    dr={}
-    for filename in os.listdir(ingenome):
-        #pre=re.split('\.',filename)[0]
-        pre=os.path.splitext(filename)[0]
-        #print(pre)
-        #exit()
-        dr[pre]=ingenome+'/'+filename
+    dr = index_genomes(ingenome)
+    validate_label_genomes(label, dr)
     # Run prodigal and rgi for all input genomes
     print('Run Prodigal and RGI for all input genomes!',flush=True)
     gdir,pdir=run_prodigal_rgi(dr,odir,threads)
