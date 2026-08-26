@@ -14,6 +14,7 @@ from generate_token_from_ps import generate_tps
 from generate_token_from_ps_predict import generate_tpsp
 from feature_selection_sp_test import sef_test
 from cal_length_test_fs import scan_length_fs,scan_length_fs_shap
+from sample_ids import index_genomes, sample_id_from_filename, validate_label_genomes
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 def build_dir(idir):
@@ -222,7 +223,7 @@ def run_ps(intest,label,label2,drug,work_dir,train_dir):
             dval[pre]=ingenome+'/'+filename
     '''
     for filename in os.listdir(intest):
-        pre=os.path.splitext(filename)[0]
+        pre=sample_id_from_filename(filename)
         #if pre in val:
         dval[pre]=intest+'/'+filename
     dl={}
@@ -337,6 +338,13 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=
     work_dir = os.path.abspath(odir)
     build_dir(work_dir)
     train_dir = os.path.abspath(train_dir if train_dir else work_dir)
+    dr = index_genomes(intest)
+    val = list(dr)
+    if label2:
+        label2 = os.path.abspath(label2)
+        if not os.path.exists(label2):
+            raise FileNotFoundError(f"Provided label file not found: {label2}")
+        validate_label_genomes(label2, dr)
     label=os.path.join(train_dir,'train_label.txt')
     if not os.path.exists(label):
         raise FileNotFoundError(f"Training label file not found: {label}")
@@ -373,26 +381,12 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=
     shap_sample_file = os.path.join(shap_dir, 'test_samples.tsv')
     with open(shap_sample_file, 'w') as shap_fh:
         shap_fh.write('Sample_ID\n')
-    dr={}
-    val=[]
-    for filename in os.listdir(intest):
-        #pre=re.split('\.',filename)[0]
-        pre=os.path.splitext(filename)[0]
-        #print(pre)
-        #exit()
-        dr[pre]=intest+'/'+filename
-        val.append(pre)
-
     with open(shap_sample_file, 'a') as shap_fh:
         for sid in sorted(val):
             shap_fh.write(f"{sid}\n")
 
     provided_label_file = bool(label2)
-    if provided_label_file:
-        label2 = os.path.abspath(label2)
-        if not os.path.exists(label2):
-            raise FileNotFoundError(f"Provided label file not found: {label2}")
-    else:
+    if not provided_label_file:
         placeholder_label = os.path.join(work_dir, 'test_labels_placeholder.txt')
         header = 'ID\tLabel'
         if os.path.exists(label):
