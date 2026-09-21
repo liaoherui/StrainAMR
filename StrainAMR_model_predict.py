@@ -5,7 +5,8 @@ import argparse
 import numpy as np
 from library import Transformer_without_pos_multimodal_add_attn,analyze_attention_matrix_network_optimize_iterate_shap,Transformer_without_pos,Transformer_without_pos_multimodal_add_attn_only2,analyze_attention_matrix_network_optimize_iterate_shap_top
 from library import utils
-from library.token_contribution import export_token_contributions
+from library import interpret_pipeline as IP
+from library.transformer_attribution import clean_state_dict
 import torch
 from torch.nn import functional as F
 from torch import optim,nn
@@ -490,6 +491,12 @@ def main():
     parser.add_argument('--shap-top-k', dest='shap_top_k', type=int,
                         help="Number of top positive/negative features to record per sample for SHAP outputs (default: 10).",
                         default=10)
+    parser.add_argument('--attr_method', dest='attr_method', choices=['ig', 'gxi'], default='ig',
+                        help="Transformer attribution: integrated gradients (ig, default) or single-step gxi (faster).")
+    parser.add_argument('--attr_steps', dest='attr_steps', type=int, default=16,
+                        help="Integrated-gradient steps (default: 16).")
+    parser.add_argument('--attr_max_train', dest='attr_max_train', type=int, default=0,
+                        help="Subsample training genomes used for global attribution ranking (0 = all).")
     parser.add_argument('--db', dest='db_dir', type=str,
                         help="Directory containing the training database artifacts (default: use the input directory).")
     args = parser.parse_args()
@@ -635,7 +642,7 @@ def main():
     #optimizer=optim.Adam(model.parameters(), lr=lr)
     #loss_func = nn.BCEWithLogitsLoss()
     # Load the model
-    model.load_state_dict(torch.load(model_PATH, map_location=device))
+    model.load_state_dict(clean_state_dict(torch.load(model_PATH, map_location=device)))
 
 
     x_train1=x_train1.astype(int)
@@ -895,44 +902,28 @@ def main():
             shap_file_map[key] = chosen
 
         relevant_shap = {label: shap_file_map.get(label, "") for label in feature_labels}
-        if any(os.path.exists(path) for path in relevant_shap.values() if path):
-            feature_tensors = []
-            if fnum >= 1:
-                feature_tensors.append(torch.from_numpy(x_val1))
-            if fnum >= 2:
-                feature_tensors.append(torch.from_numpy(x_val2))
-            if fnum == 3:
-                feature_tensors.append(torch.from_numpy(x_val3))
-
-            annotation_file_map = {
-                'snv': [os.path.join(train_dir, 'feature_remain_graph.txt')],
-                'pc': [os.path.join(train_dir, 'feature_remain_pc.txt')],
-                'kmer': [os.path.join(train_dir, 'kmer_token_id.txt')],
-            }
-            relevant_annotations = {
-                label: annotation_file_map.get(label, []) for label in feature_labels
-            }
-            try:
-                export_token_contributions(
-                    model,
-                    feature_tensors,
-                    feature_labels,
-                    relevant_shap,
-                    analysis_dir,
-                    encoder_names,
-                    device=device,
-                    batch_size=batch_size,
-                    top_k_pairs=20,
-                    subset_sizes=(2, 3),
-                    subset_sample_size=32,
-                    sample_ids=sid_val,
-                    annotation_file_map=relevant_annotations,
-                )
-                print('Saved interpretability summaries for test predictions.', flush=True)
-            except Exception as exc:
-                print(f'Failed to export interpretability summaries: {exc}', flush=True)
-        else:
-            print('No SHAP reference files found. Skipping interpretability export.', flush=True)
+        # Attribution on the Transformer itself (library/interpret_pipeline.py).
+        # Global rankings use the training genomes of the database; local
+        # explanations and the deletion test use the genomes being predicted.
+        train_list = [x_train1, x_train2, x_train3][:fnum]
+        eval_list = [x_val1, x_val2, x_val3][:fnum]
+        shap_default, annot_default = IP.find_default_files(train_dir, feature_labels)
+        for label in feature_labels:
+            if relevant_shap.get(label) and 'strains_train' in os.path.basename(relevant_shap[label]):
+                shap_default[label] = relevant_shap[label]
+        opts = IP.InterpretOptions(
+            method=args.attr_method, steps=args.attr_steps, batch_size=max(1, min(batch_size, 8)),
+            max_train=args.attr_max_train, faithfulness=bool(test_labels_available),
+            shap_files=shap_default, annotation_files=annot_default,
+        )
+        try:
+            IP.run(model, encoder_names, feature_labels, train_list, y_train, sid_train,
+                   os.path.join(analysis_dir, 'transformer_attribution'), opts,
+                   eval_arrays=eval_list, y_eval=np.asarray(y_val), ids_eval=sid_val,
+                   device=device, indir=train_dir)
+            print('Saved Transformer attribution results for test predictions.', flush=True)
+        except Exception as exc:
+            print(f'Failed to export Transformer attribution: {exc}', flush=True)
 
 
 
