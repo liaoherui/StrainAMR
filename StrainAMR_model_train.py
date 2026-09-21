@@ -6,7 +6,9 @@ import argparse
 from typing import List
 import numpy as np
 from library import Transformer_without_pos_multimodal_add_attn,Transformer_without_pos,Transformer_without_pos_multimodal_add_attn_only2
-from library.token_contribution import export_token_contributions
+from library import interpret_pipeline as IP
+from library import transformer_attribution as TA
+from library.transformer_attribution import clean_state_dict
 import torch
 from torch.nn import functional as F
 from torch import optim,nn
@@ -245,6 +247,14 @@ def main():
                         help="Output directory of results. (Default: StrainAMR_fold_res)")
     parser.add_argument('--batch_size', dest='batch_size', type=int,
                         help="Batch size for training and evaluation. (Default: 20).")
+    parser.add_argument('--attr_method', dest='attr_method', choices=['ig', 'gxi'], default='ig',
+                        help="Transformer attribution: integrated gradients (ig, default) or single-step gxi (faster).")
+    parser.add_argument('--attr_steps', dest='attr_steps', type=int, default=16,
+                        help="Integrated-gradient steps (default: 16).")
+    parser.add_argument('--attr_max_train', dest='attr_max_train', type=int, default=0,
+                        help="Subsample training genomes used for global attribution ranking (0 = all).")
+    parser.add_argument('--attr_sanity', dest='attr_sanity', type=int, default=0,
+                        help="Set to 1 to run the model-randomisation sanity check after training.")
     parser.add_argument('--epochs', dest='epochs', type=int,
                         help="Number of training epochs. (Default: 100).")
     args = parser.parse_args()
@@ -592,61 +602,33 @@ def main():
 
         #exit()
     if atw == 0:
-        print("Detect '-a 1'! -> Skip the attribution calculation step...")
+        print("Detect '-a 0'! -> Skip the attribution calculation step...")
         return
-
-    feature_arrays: List[torch.Tensor] = []
-    if fnum >= 1:
-        feature_arrays.append(torch.from_numpy(x_train1))
-    if fnum >= 2:
-        feature_arrays.append(torch.from_numpy(x_train2))
-    if fnum == 3:
-        feature_arrays.append(torch.from_numpy(x_train3))
-    '''
-    shap_file_map = {
-        'snv': indir + '/shap/strains_train_sentence_fs_shap.txt',
-        'pc': indir + '/shap/strains_train_pc_token_fs_shap.txt',
-        'kmer': indir + '/shap/strains_train_kmer_token_shap.txt'
-    }
-    '''
 
     if not has_validation:
-        print('No validation/test data available. Skipping interpretability export.', flush=True)
-        return
+        print('No validation/test data available: global attribution only (no held-out analyses).', flush=True)
 
-    shap_file_map = {}
-    for key, filename in [
-        ('snv', 'strains_train_sentence_fs_shap.txt'),
-        ('pc', 'strains_train_pc_token_fs_shap.txt'),
-        ('kmer', 'strains_train_kmer_token_shap.txt')
-    ]:
-        primary = os.path.join(indir, 'shap', filename)
-        fallback = os.path.join(indir, filename)
-        shap_file_map[key] = primary if os.path.exists(primary) else fallback
+    # Interpret the checkpoint that is actually kept, not the last-epoch weights.
+    ckpt = os.path.join(models_dir, "best_model_f1_score.pt")
+    if sm == 0 and os.path.exists(os.path.join(models_dir, "checkpoint_best.pt")):
+        ckpt = os.path.join(models_dir, "checkpoint_best.pt")
+    if os.path.exists(ckpt):
+        TA.unwrap(model).load_state_dict(clean_state_dict(torch.load(ckpt, map_location=device)))
+        print(f'Attribution uses checkpoint: {ckpt}', flush=True)
+    model.eval()
 
-    annotation_file_map = {
-        'snv': [os.path.join(indir, 'feature_remain_graph.txt')],
-        'pc': [os.path.join(indir, 'feature_remain_pc.txt')],
-        'kmer': [os.path.join(indir, 'kmer_token_id.txt')],
-    }
-
-    relevant_annotations = {label: annotation_file_map.get(label, []) for label in feature_labels}
-
-    export_token_contributions(
-        model,
-        feature_arrays,
-        feature_labels,
-        shap_file_map,
-        odir+'/analysis',
-        encoder_names,
-        device=device,
-        batch_size=batch_size,
-        top_k_pairs=20,
-        subset_sizes=(2, 3),
-        subset_sample_size=32,
-        sample_ids=sid_train,
-        annotation_file_map=relevant_annotations,
+    train_list = [x_train1, x_train2, x_train3][:fnum]
+    eval_list = [x_val1, x_val2, x_val3][:fnum] if has_validation else None
+    shap_files, annot_files = IP.find_default_files(indir, feature_labels)
+    opts = IP.InterpretOptions(
+        method=args.attr_method, steps=args.attr_steps, batch_size=max(1, min(batch_size, 8)),
+        max_train=args.attr_max_train, faithfulness=has_validation, sanity=bool(args.attr_sanity),
+        shap_files=shap_files, annotation_files=annot_files,
     )
+    IP.run(model, encoder_names, feature_labels, train_list, np.asarray(y_train), list(sid_train),
+           os.path.join(analysis_dir, 'transformer_attribution'), opts,
+           eval_arrays=eval_list, y_eval=np.asarray(y_val) if has_validation else None,
+           ids_eval=list(sid_val) if has_validation else None, device=device, indir=indir)
 
 
 if __name__=="__main__":

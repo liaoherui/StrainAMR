@@ -179,6 +179,49 @@ sh batch_train_3fold_exp.sh
     - `shap/` – SHAP value tables and interaction scores for test genomes with feature names
     - `analysis/` – attention-weight graphs and top-token tables for predictions
 
+## Transformer attribution (`StrainAMR_interpret.py`)
+
+The SHAP tables above explain an auxiliary random forest. `StrainAMR_interpret.py` explains the
+Transformer classifier itself, and runs on any existing checkpoint (including models trained with `-a 0`):
+
+```bash
+python StrainAMR_interpret.py \
+    -i Benchmark_features/Ecoli_ciprofloxacin_3fold/Fold1 \
+    -m Model_3fold_batch_best/Ecoli_ciprofloxacin_3fold/Fold1 \
+    -o Interpret/Ecoli_ciprofloxacin/Fold1 --rf_shap --sanity --export_topk 10,50,100
+```
+
+`StrainAMR_model_train.py` (unless `-a 0`) and `StrainAMR_model_predict.py` now run the same analysis
+automatically on the kept checkpoint and write it to `analysis/transformer_attribution/`.
+
+| Output | Content |
+| --- | --- |
+| `<mod>_token_attribution.tsv` | Global token table from the training split: Integrated-Gradients importance and signed effect (overall, in R, in S), exact leave-one-out effect (logit, probability, flip rate), attention received, chi-squared and RF-SHAP ranks, annotations |
+| `<mod>_neural_rank_{ig,occlusion}.txt` | Rankings in the SHAP-file format, usable by `select_topx_shap.py` |
+| `<mod>_pair_interaction.tsv` | Within-modality occlusion interaction `f(x)-f(x\i)-f(x\j)+f(x\ij)` (synergy > 0, redundancy < 0) next to attention between the pair |
+| `modality_contribution_{train,eval}.tsv` | Exact per-genome decomposition of the logit over modalities |
+| `sample_token_attribution_eval.tsv` | Top tokens per held-out genome, with direction |
+| `faithfulness_deletion.tsv` | Deletion test on held-out genomes for every ranking (local IG, global IG, occlusion, attention, chi2, RF-SHAP, random) |
+| `sanity_randomization.tsv` | Model-parameter randomisation check (`--sanity`) |
+| `topk_token_files/` | Filtered token files for retraining on the top-k neural tokens (`--export_topk`) |
+| `interpret_summary.json` | IG completeness, additivity residual, ranking agreement, AOPC, runtime |
+
+Design notes:
+
+- **Global rankings use the training split only**; held-out genomes are used for local explanations and the
+  deletion test, so rankings can be fed to retraining without leakage.
+- **Removal re-packs.** The classifier flattens encoder outputs position-by-position, so it is position-aware.
+  SNV-graph and protein-cluster tokens are left-packed, so a token's presence is also encoded by the positions of
+  the tokens after it. Removing a token therefore deletes it and shifts later tokens left (the input a genome without
+  that feature would produce); the fixed-slot k-mer panel is zeroed in place. The layout is auto-detected.
+  In-place masking can miss features completely (see `tests/test_transformer_attribution.py`).
+- **Modalities are exactly additive.** The fusion head (`fc1 -> BatchNorm -> out`) has no non-linearity, so the
+  logit is a sum of per-modality terms; modality contributions are exact and cross-modality interactions are zero by
+  construction. Pair analysis is therefore within-modality.
+- Useful speed knobs on large tasks: `--max_train`, `--method gxi`, `--steps`, `--occlusion_top`, `--max_rows`.
+
+Tests: `python -m pytest tests/test_transformer_attribution.py -q` (planted-signal ground truth).
+
 ## New Features
 
 - `StrainAMR_build_train.py` and `StrainAMR_build_test.py` accept `--threads` to process genomes in parallel
