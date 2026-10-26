@@ -1,0 +1,60 @@
+# StrainAMR environment, built from scratch on a base conda/mamba install.
+#
+# Use the libmamba solver, or this will take a very long time to resolve -- bioconda's dependency
+# graph is large and the classic conda solver struggles with it:
+#
+#     conda install -n base conda-libmamba-solver
+#     conda config --set solver libmamba
+#     conda config --set channel_priority strict
+#
+#     conda env create -f environment.yml
+#     conda activate strainamr
+#     pip install -e .
+#
+# (mamba env create / micromamba work too and need no solver setup.)
+#
+# Channel order matters: bioconda requires conda-forge to come first, and 'defaults' is left out
+# because mixing it with conda-forge is a common source of unsolvable environments.
+#
+# Unlike strainamr.yaml (a full pinned export of one machine) this lists only what StrainAMR calls.
+# PhenotypeSeeker is deliberately absent: its k-mer selection is reproduced in kmer_select.py.
+name: strainamr
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+
+  # --- gene calling and resistance-gene annotation
+  - pyrodigal>=3.0          # gene calling, in-process
+  - prodigal                # RGI calls it internally
+  - rgi=6                   # CARD RGI; the repo ships localDB.zip for `--local`.
+                            # This is the heaviest dependency by far (blast, diamond, kma, bowtie2,
+                            # samtools come with it). If the solve is slow, this is why.
+  - ncbi-amrfinderplus      # known-mechanism layer; run `amrfinder -u` once to fetch its database
+
+  # --- protein clustering
+  - mmseqs2                 # default clustering for PC tokens
+  - cd-hit                  # --cluster-tool cd-hit, and cd-hit-2d on the test path
+
+  # --- pangenome graph channel
+  - minimap2
+  - seqwish
+  - graphaligner
+
+  # --- k-mer channel
+  - mash                    # genome distances for the GSC sample weights
+
+  # --- python
+  - pytorch                 # CPU build; for CUDA see https://pytorch.org/get-started/locally/
+  - numpy
+  - scipy
+  - pandas
+  - scikit-learn
+  - statsmodels
+  - biopython
+  - matplotlib
+  - seaborn
+  - shap
+  - tqdm
+  - pip

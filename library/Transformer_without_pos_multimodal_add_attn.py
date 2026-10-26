@@ -1,6 +1,11 @@
 import torch
 import torch.nn as nn
 
+try:
+    from library.pooled_head import AttentionPool, flat_mask
+except ImportError:                      # imported as a top-level module
+    from pooled_head import AttentionPool, flat_mask
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class SelfAttention(nn.Module):
@@ -188,6 +193,7 @@ class Transformer(nn.Module):
         max_length_1=512,
         max_length_2=512,
         max_length_3=512,
+        head='flatten',
     ):
 
         super(Transformer, self).__init__()
@@ -226,7 +232,15 @@ class Transformer(nn.Module):
 
         self.src_pad_idx = src_pad_idx
         self.device = device
-        self.fc1 = nn.Linear((max_length_1+max_length_2+max_length_3)*embed_size, 64)
+        # 'flatten' is the original head: one weight per (slot, embedding dim), so slot
+        # position has to be meaningful. 'pooled' summarises each channel instead -- see
+        # library/pooled_head.py for why that matters and what it costs.
+        self.head = head
+        if head == 'pooled':
+            self.pool = AttentionPool(3, embed_size)
+            self.fc1 = nn.Linear(3*embed_size, 64)
+        else:
+            self.fc1 = nn.Linear((max_length_1+max_length_2+max_length_3)*embed_size, 64)
         self.out = nn.Linear(64, 1)
         self.bn = nn.BatchNorm1d(64)
 
@@ -240,17 +254,23 @@ class Transformer(nn.Module):
     def forward(self, src_1,src_2,src_3):
         src_mask_1 = self.make_src_mask(src_1)
         enc_src_1,as1 = self.encoder1(src_1, src_mask_1)
-        enc_src_1 = enc_src_1.reshape(enc_src_1.shape[0], -1)
 
         src_mask_2 = self.make_src_mask(src_2)
         enc_src_2,as2 = self.encoder2(src_2, src_mask_2)
-        enc_src_2 = enc_src_2.reshape(enc_src_2.shape[0], -1)
 
         src_mask_3 = self.make_src_mask(src_3)
         enc_src_3,as3 = self.encoder3(src_3, src_mask_3)
-        enc_src_3 = enc_src_3.reshape(enc_src_3.shape[0], -1)
 
-        enc_src=torch.cat([enc_src_1, enc_src_2, enc_src_3], dim=1)
+        if self.head == 'pooled':
+            # one embed_size vector per channel, so slot position stops mattering and the padded
+            # positions are left out of the mean instead of being flattened into the head
+            enc_src = torch.cat([self.pool(enc_src_1, flat_mask(src_mask_1), 0),
+                                 self.pool(enc_src_2, flat_mask(src_mask_2), 1),
+                                 self.pool(enc_src_3, flat_mask(src_mask_3), 2)], dim=1)
+        else:
+            enc_src = torch.cat([enc_src_1.reshape(enc_src_1.shape[0], -1),
+                                 enc_src_2.reshape(enc_src_2.shape[0], -1),
+                                 enc_src_3.reshape(enc_src_3.shape[0], -1)], dim=1)
         #print(enc_src_1.shape,enc_src_2.shape,enc_src_3.shape)
         #print(enc_src.shape)
         #exit()

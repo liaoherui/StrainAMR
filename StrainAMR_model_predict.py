@@ -5,7 +5,9 @@ import argparse
 import numpy as np
 from library import Transformer_without_pos_multimodal_add_attn,analyze_attention_matrix_network_optimize_iterate_shap,Transformer_without_pos,Transformer_without_pos_multimodal_add_attn_only2,analyze_attention_matrix_network_optimize_iterate_shap_top
 from library import utils
-from library.token_contribution import export_token_contributions
+from library import interpret_pipeline as IP
+from library.transformer_attribution import clean_state_dict
+from library.pooled_head import head_of_state_dict
 import torch
 from torch.nn import functional as F
 from torch import optim,nn
@@ -46,7 +48,7 @@ class EarlyStopping:
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.val_loss_min = np.Inf
+        self.val_loss_min = np.inf   # np.Inf was removed in numpy 2.0; np.inf works in both
         self.delta = delta
         self.path = path
         self.trace_func = trace_func
@@ -134,22 +136,26 @@ def process_intsv(infile,in_x):
     #print(data)
     #exit()
     dtoken={}
-    #line=f.readline()
     c=0
     yp=[]
     mt=0
     samples=[]
+    truncated=[0,0]     # genomes truncated, longest seen
 
     while True:
         line=f.readline().strip()
         if not line:break
         ele=line.split()
-        #print(ele)
-        #exit()
         tk=re.split(',',ele[-1])
+        width=matrix.shape[1]
+        if len(tk)>width:
+            # the trained classifier fixes the width, so a longer genome has to lose its tail rather
+            # than overrun the matrix (which is what the IndexError used to be)
+            truncated[0]+=1
+            truncated[1]=max(truncated[1],len(tk))
+            tk=tk[:width]
         tem=0
         for t in tk:
-            #print(t,ele[0])
             if int(t) > mt:
                 mt=int(t)
             matrix[c][tem]=int(t)
@@ -159,7 +165,10 @@ def process_intsv(infile,in_x):
         c+=1
         yp.append(int(ele[1]))
         samples.append(ele[0])
-    #print(len(yp))
+    if truncated[0]:
+        print(f"WARNING: {truncated[0]} genome(s) in {os.path.basename(infile)} have more tokens than "
+              f"the model's width {matrix.shape[1]} (longest {truncated[1]}); the extra tokens were "
+              f"dropped, because the width is fixed by the trained classifier.", flush=True)
     yp=np.array(yp)
     y=np.eye(2)[yp]
     return matrix,yp,y,mt,ls,samples
@@ -199,12 +208,107 @@ def remove_new_ele(in_train,in_test):
     res=np.array(res)
     return res
 
-def load_token_len(indir):
+def load_token_len(indir, *extra_dirs):
+    """Padding width per channel: the longest token vector over every directory given.
+
+    Reading the training database alone is not enough -- a test genome can carry more tokens than any
+    training genome, and padding to the smaller width overruns the matrix.
+    """
+    lens = None
+    for d in (indir,) + tuple(x for x in extra_dirs if x):
+        path = os.path.join(d, 'longest_len_fs.txt')
+        if not os.path.exists(path):
+            continue
+        with open(path) as fh:
+            fh.readline()
+            ele = fh.readline().strip().split('\t')
+        vals = tuple(int(x) for x in ele[:3])
+        lens = vals if lens is None else tuple(max(a, b) for a, b in zip(lens, vals))
+    if lens is not None:
+        return lens
     f=open(indir+'/longest_len_fs.txt','r')
     line=f.readline()
     line=f.readline().strip()
     ele=line.split('\t')
     return int(ele[0]),int(ele[1]),int(ele[2])
+
+def resolve_model_path(model_PATH):
+    """Accept either a checkpoint file or a training output directory.
+
+    Training keeps one of two file names depending on --save_mode and records the choice in
+    selected_model.txt; the directory is the natural thing to pass, so resolve it here rather than
+    making the caller remember the rule.
+    """
+    if not model_PATH or not os.path.isdir(model_PATH):
+        return model_PATH
+    marker = os.path.join(model_PATH, 'selected_model.txt')
+    if os.path.exists(marker):
+        with open(marker) as fh:
+            rel = fh.readline().strip()
+        cand = os.path.join(model_PATH, rel)
+        if os.path.exists(cand):
+            print(f"using checkpoint {cand} (from selected_model.txt)", flush=True)
+            return cand
+    for rel in ('models/checkpoint_best.pt', 'models/best_model_f1_score.pt',
+                'checkpoint_best.pt', 'best_model_f1_score.pt'):
+        cand = os.path.join(model_PATH, rel)
+        if os.path.exists(cand):
+            print(f"using checkpoint {cand}", flush=True)
+            return cand
+    found = []
+    for root, _dirs, files in os.walk(model_PATH):
+        found += [os.path.join(root, f) for f in files if f.endswith('.pt')]
+    if len(found) == 1:
+        print(f"using checkpoint {found[0]}", flush=True)
+        return found[0]
+    raise FileNotFoundError(
+        f"no checkpoint found in {model_PATH}" if not found else
+        f"several checkpoints in {model_PATH}; pass one with -m: " + ", ".join(sorted(found)[:5]))
+
+
+def model_root(model_arg):
+    """The training output directory for a -m argument that may be the directory or a checkpoint.
+
+    Training writes token_lengths.txt (and the mechanism threshold) at the top of its output
+    directory, while the checkpoint sits in models/.  Passing the .pt file used to lose them, and
+    prediction then fell back to the database's widths, which differ whenever training used a
+    validation set.
+    """
+    if not model_arg:
+        return model_arg
+    if os.path.isdir(model_arg):
+        return model_arg
+    d = os.path.dirname(os.path.abspath(model_arg))
+    for cand in (d, os.path.dirname(d)):
+        if os.path.exists(os.path.join(cand, 'token_lengths.txt')):
+            return cand
+    return d
+
+
+def model_token_len(model_dir, train_dir, indir):
+    """The padding widths the model was trained with.
+
+    The classifier flattens the sequence, so its first Linear layer fixes these widths: predicting
+    with anything else fails with a shape mismatch. Training writes them to token_lengths.txt next to
+    the model; for a model trained before that existed, fall back to the training database's file and
+    say so, because there is no way to recover the real value.
+    """
+    model_dir = model_root(model_dir)
+    path = os.path.join(model_dir, 'token_lengths.txt') if model_dir else None
+    if path and os.path.exists(path):
+        with open(path) as fh:
+            fh.readline()
+            ele = fh.readline().strip().split('\t')
+        lens = tuple(int(x) for x in ele[:3])
+        print(f"token widths from {path}: graph {lens[0]}, PC {lens[1]}, k-mer {lens[2]}", flush=True)
+        return lens
+    lens = load_token_len(train_dir)
+    print(f"WARNING: no token_lengths.txt in {model_dir}; assuming the widths in {train_dir} "
+          f"(graph {lens[0]}, PC {lens[1]}, k-mer {lens[2]}). If this model was trained with a "
+          f"validation set its widths may differ, which shows up as a shape mismatch below.",
+          flush=True)
+    return lens
+
 
 def parsef(ins):
     res=re.split(',',ins)
@@ -256,7 +360,7 @@ def train_regression_explainer(feature_matrix, targets):
     model.fit(feature_matrix, targets)
 
     explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(feature_matrix)
+    shap_values = explainer.shap_values(feature_matrix, check_additivity=False)
     if isinstance(shap_values, list):
         shap_values = shap_values[0]
     shap_values = np.asarray(shap_values, dtype=np.float32)
@@ -472,7 +576,7 @@ def generate_test_shap_reports(
 
 def main():
     usage = "StrainAMR_model_predict - Takes output folder of StrainAMR_build_train and StrainAMR_build_test as input, and finishes prediction of test genomes."
-    parser = argparse.ArgumentParser(prog="StrainAMR_fold_run.py", description=usage)
+    parser = argparse.ArgumentParser(prog=(sys.argv[0] if sys.argv[0].startswith("strainamr") else "StrainAMR_fold_run.py"), description=usage)
     parser.add_argument('-i', '--input_file', dest='input_file', type=str,
                         help="The directory of the input files (output folder of StrainAMR_build_train and StrainAMR_build_test).")
     parser.add_argument('-f', '--feature_used', dest='fused', type=str,
@@ -480,9 +584,26 @@ def main():
     # parser.add_argument('-t', '--train_mode', dest='train_mode', type=str,
     #                     help="If set to 1, then it means there are no test data and only training data exists in the input. (Default: 0).")
     parser.add_argument('-m', '--model_PATH', dest='model_PATH', type=str,
-                        help="The dir of pre-trained models.")
+                        help="Training output directory (the checkpoint inside it is picked "
+                             "automatically), or a checkpoint .pt file.")
     # parser.add_argument('-a', '--attention_weight', dest='attn_weight', type=str,
     #                     help="If set to 0, then will not output the attention weight between tokens. (Default: 1).")
+    parser.add_argument('--mode', dest='mode', choices=['hybrid', 'model-only', 'mechanism-only'],
+                        default='hybrid',
+                        help="hybrid (default): a counted known determinant calls R, otherwise the model "
+                             "decides at the threshold chosen during training. model-only: the model "
+                             "at 0.5, as before. mechanism-only: known determinants only; needs no "
+                             "model and no GPU. The model's own probabilities are always kept in "
+                             "logs/output_sample_prob_predict.txt.")
+    parser.add_argument('--skip-analysis', dest='skip_analysis', action='store_true',
+                        help="Only predict: write the predictions and metrics, skip the SHAP reports "
+                             "and the Transformer attribution (much faster and lighter).")
+    parser.add_argument('--interaction-features', dest='inter_feats', type=int, default=64,
+                        help="Features kept for the SHAP token-interaction tables, ranked by SHAP "
+                             "importance. The interaction values cost n_genomes x features^2, so the "
+                             "full PC channel (about 6000 tokens) needs ~86 GB and gets the process "
+                             "killed; only the top pairs are reported anyway. 0 uses every feature, "
+                             "-1 skips the interaction tables. (Default: 64)")
     parser.add_argument('-o', '--outdir', dest='outdir', type=str,
                         help="Output directory of results. (Default: StrainAMR_fold_res)")
     parser.add_argument('--batch_size', dest='batch_size', type=int,
@@ -490,6 +611,12 @@ def main():
     parser.add_argument('--shap-top-k', dest='shap_top_k', type=int,
                         help="Number of top positive/negative features to record per sample for SHAP outputs (default: 10).",
                         default=10)
+    parser.add_argument('--attr_method', dest='attr_method', choices=['ig', 'gxi'], default='ig',
+                        help="Transformer attribution: integrated gradients (ig, default) or single-step gxi (faster).")
+    parser.add_argument('--attr_steps', dest='attr_steps', type=int, default=16,
+                        help="Integrated-gradient steps (default: 16).")
+    parser.add_argument('--attr_max_train', dest='attr_max_train', type=int, default=0,
+                        help="Subsample training genomes used for global attribution ranking (0 = all).")
     parser.add_argument('--db', dest='db_dir', type=str,
                         help="Directory containing the training database artifacts (default: use the input directory).")
     args = parser.parse_args()
@@ -501,7 +628,7 @@ def main():
     #sm=args.save_model
     #atw=args.attn_weight
     odir= args.outdir
-    model_PATH=args.model_PATH
+    model_PATH=resolve_model_path(args.model_PATH)
     train_dir = args.db_dir if args.db_dir else indir
     train_dir = os.path.abspath(train_dir)
     if not os.path.isdir(train_dir):
@@ -548,7 +675,15 @@ def main():
     for d in (logs_dir,analysis_dir):
         os.makedirs(d, exist_ok=True)
         
-    ol=open(logs_dir +'/samples_pred_log.txt','w')
+    # buffering=1: see the note in StrainAMR_model_train.py -- keeps the log intact if we are killed.
+    ol=open(logs_dir +'/samples_pred_log.txt','w', buffering=1)
+    if args.mode == 'mechanism-only':
+        import mechanism_layer as ML
+        if not os.path.exists(os.path.join(train_dir, 'mechanism', 'calibration.json')):
+            raise SystemExit(f'{train_dir} has no known-mechanism layer (built with --no-mechanism, or '
+                             f'by an older StrainAMR): mechanism-only prediction is not possible')
+        ML.write_predictions(train_dir, indir, odir, None, mode='mechanism-only')
+        return 0
 
     if args.batch_size:
         batch_size = args.batch_size
@@ -576,7 +711,7 @@ def main():
     #lss1=765
     #lss2=536
     #lss3=1000
-    lss1,lss2,lss3=load_token_len(train_dir)
+    lss1,lss2,lss3=model_token_len(args.model_PATH, train_dir, indir)
 
     x_train1,y_train,yl_train,token_size1,ls,sid_train=process_intsv(train_dir+'/strains_train_sentence_fs.txt',lss1)
     x_train2,y_train,yl_train,token_size2,ls,sid_train=process_intsv(train_dir+'/strains_train_pc_token_fs.txt',lss2)
@@ -594,6 +729,12 @@ def main():
     tsize3=token_size3+2
     print('Token count_type1:',tsize3)
     setup_seed(10)
+    # The head has to match the checkpoint, so read it off fc1's shape rather than asking the user to
+    # remember which one they trained with: a weight shape cannot drift out of sync with the weights.
+    _state = clean_state_dict(torch.load(model_PATH, map_location=device))
+    _head = head_of_state_dict(_state, 512, fnum)
+    print(f"classifier head: {_head} (read from the checkpoint's fc1 shape)", flush=True)
+
     if fnum == 1:
         encoder_names = ['encoder']
         if fused == 'pc':
@@ -610,7 +751,7 @@ def main():
             feature_labels = ['kmer']
         else:
             feature_labels = ['snv']
-        model = Transformer_without_pos.Transformer(src_vocab_size=tsize1, max_length=lss1, device=device, src_pad_idx=0, dropout=0.1)
+        model = Transformer_without_pos.Transformer(src_vocab_size=tsize1, max_length=lss1, device=device, src_pad_idx=0, dropout=0.1, head=_head)
     elif fnum==2:
         encoder_names = ['encoder1', 'encoder2']
         if re.search('pc',fused) and  re.search('kmer',fused):
@@ -627,15 +768,15 @@ def main():
             feature_labels = ['snv', 'kmer']
         else:
             feature_labels = ['snv', 'pc']
-        model = Transformer_without_pos_multimodal_add_attn_only2.Transformer(src_vocab_size_1=tsize1,src_vocab_size_2=tsize2,max_length_1=lss1,max_length_2=lss2,device=device,src_pad_idx=0,dropout=0.1)
+        model = Transformer_without_pos_multimodal_add_attn_only2.Transformer(src_vocab_size_1=tsize1,src_vocab_size_2=tsize2,max_length_1=lss1,max_length_2=lss2,device=device,src_pad_idx=0,dropout=0.1,head=_head)
     else:
         encoder_names = ['encoder1', 'encoder2', 'encoder3']
         feature_labels = ['snv', 'pc', 'kmer']
-        model=Transformer_without_pos_multimodal_add_attn.Transformer(src_vocab_size_1=tsize1,src_vocab_size_2=tsize2,src_vocab_size_3=tsize3,max_length_1=lss1,max_length_2=lss2,max_length_3=lss3,device=device,src_pad_idx=0,dropout=0.1)
+        model=Transformer_without_pos_multimodal_add_attn.Transformer(src_vocab_size_1=tsize1,src_vocab_size_2=tsize2,src_vocab_size_3=tsize3,max_length_1=lss1,max_length_2=lss2,max_length_3=lss3,device=device,src_pad_idx=0,dropout=0.1,head=_head)
     #optimizer=optim.Adam(model.parameters(), lr=lr)
     #loss_func = nn.BCEWithLogitsLoss()
     # Load the model
-    model.load_state_dict(torch.load(model_PATH, map_location=device))
+    model.load_state_dict(_state)
 
 
     x_train1=x_train1.astype(int)
@@ -702,15 +843,14 @@ def main():
                     sentence3=batch_x3.int()
                     if fnum == 1:
                         predictions = model(sentence1)
+                    # The attention matrices the model also returns are not kept: they are
+                    # (genomes x heads x L x L) per channel -- ~20 GB for 300 Klebsiella genomes --
+                    # and their only consumer was an analysis disabled long ago, so collecting
+                    # them (and stacking them afterwards) only got predict OOM-killed.
                     elif fnum == 2:
-                        predictions, as1, as2 = model(sentence1, sentence2)
-                        at1_test_tem.append(as1.detach().cpu().numpy())
-                        at2_test_tem.append(as2.detach().cpu().numpy())
+                        predictions, _as1, _as2 = model(sentence1, sentence2)
                     else:
-                        predictions,as1,as2,as3 = model(sentence1,sentence2,sentence3)
-                        at1_test_tem.append(as1.detach().cpu().numpy())
-                        at2_test_tem.append(as2.detach().cpu().numpy())
-                        at3_test_tem.append(as3.detach().cpu().numpy())
+                        predictions, _as1, _as2, _as3 = model(sentence1, sentence2, sentence3)
 
                     batch_y = batch_y.to(device)
                     logit=torch.sigmoid(predictions.squeeze(1)).cpu().detach().numpy()
@@ -738,10 +878,42 @@ def main():
                 print(msg, flush=True)
                 print(msg, file=ol)
 
+        # Predictions first: everything below is analysis, and a failure there used to take the
+        # predictions down with it (this file was only written at the very end).
+        with open(os.path.join(logs_dir, 'output_sample_prob_predict.txt'), 'w') as o2:
+            o2.write('Sample_ID\tLabel\tPred\tProb\n')
+            for c, e in enumerate(test_label):
+                try:
+                    label_value = int(e)
+                except (TypeError, ValueError):
+                    label_value = e
+                o2.write(sid_val[c]+'\t'+str(label_value)+'\t'+str(all_pred[c])+'\t'+str(all_logit[c])+'\n')
+        print('wrote ' + os.path.join(logs_dir, 'output_sample_prob_predict.txt'), flush=True)
+        if args.mode == 'hybrid':
+            if os.path.exists(os.path.join(train_dir, 'mechanism', 'calibration.json')):
+                try:
+                    import mechanism_layer as ML
+                    _info = ML.load_threshold(model_root(args.model_PATH))
+                    if _info is None:
+                        print('WARNING: the model has no mechanism_threshold.json (trained before the '
+                              'known-mechanism layer, or without a validation set): tau = 0.5. '
+                              '`strainamr mechanism-eval ... --val-features` can choose it afterwards.',
+                              flush=True)
+                    ML.write_predictions(
+                        train_dir, indir, odir,
+                        ML.read_probs(os.path.join(logs_dir, 'output_sample_prob_predict.txt')),
+                        tau=_info['tau'] if _info else 0.5, mode='hybrid',
+                        tau_model_only=_info.get('tau_model_only') if _info else None)
+                except Exception as exc:        # noqa: BLE001 - model predictions are already saved
+                    print(f'WARNING: known-mechanism layer failed: {type(exc).__name__}: {exc}', flush=True)
+            else:
+                print('The training database has no known-mechanism layer: model-only predictions.',
+                      flush=True)
+        if args.skip_analysis:
+            print('--skip-analysis: not running the SHAP reports and Transformer attribution', flush=True)
+            return 0
+
         if fnum == 3:
-            test_at1 = np.vstack(at1_test_tem)
-            test_at2 = np.vstack(at2_test_tem)
-            test_at3 = np.vstack(at3_test_tem)
             pc_file = os.path.join(indir, 'strains_test_pc_token_fs.txt')
             snv_file = os.path.join(indir, 'strains_test_sentence_fs.txt')
             kmer_file = os.path.join(indir, 'strains_test_kmer_token.txt')
@@ -762,22 +934,31 @@ def main():
             shap_feature_select_withcls.shap_select(
                 kmer_file, kmer_shap, [os.path.join(train_dir, 'kmer_token_id.txt')]
             )
-            shap_feature_select_withcls.shap_interaction_select(
-                pc_file,
-                pair_pc,
-                map_files=[os.path.join(train_dir, 'pc_matches.txt')],
-            )
-            shap_feature_select_withcls.shap_interaction_select(
-                snv_file,
-                pair_snv,
-                map_files=[os.path.join(train_dir, 'node_token_match.txt')],
-                rgi_dir=os.path.join(train_dir, 'rgi_train'),
-            )
-            shap_feature_select_withcls.shap_interaction_select(
-                kmer_file,
-                pair_kmer,
-                map_files=[os.path.join(train_dir, 'kmer_token_id.txt')],
-            )
+            # The interaction values cost n_genomes x features^2 and only the top pairs are used,
+            # so they are computed among the strongest features; -1 skips them altogether.
+            if args.inter_feats < 0:
+                print('skipping the SHAP token-interaction tables (--interaction-features -1)',
+                      flush=True)
+            else:
+                shap_feature_select_withcls.shap_interaction_select(
+                    pc_file,
+                    pair_pc,
+                    map_files=[os.path.join(train_dir, 'pc_matches.txt')],
+                    max_features=args.inter_feats,
+                )
+                shap_feature_select_withcls.shap_interaction_select(
+                    snv_file,
+                    pair_snv,
+                    map_files=[os.path.join(train_dir, 'node_token_match.txt')],
+                    rgi_dir=os.path.join(train_dir, 'rgi_train'),
+                    max_features=args.inter_feats,
+                )
+                shap_feature_select_withcls.shap_interaction_select(
+                    kmer_file,
+                    pair_kmer,
+                    map_files=[os.path.join(train_dir, 'kmer_token_id.txt')],
+                    max_features=args.inter_feats,
+                )
 
             analyze_attention_matrix_network_optimize_iterate_shap.obtain_important_tokens(
                 test_at2,
@@ -840,17 +1021,6 @@ def main():
             rgi_dir=os.path.join(train_dir, 'rgi_train'),
         )
 
-        o2 = open(os.path.join(logs_dir, 'output_sample_prob_predict.txt'), 'w+')
-        o2.write('Sample_ID\tLabel\tPred\tProb\n')
-        c=0
-        for e in test_label:
-            try:
-                label_value = int(e)
-            except (TypeError, ValueError):
-                label_value = e
-            o2.write(sid_val[c]+'\t'+str(label_value)+'\t'+str(all_pred[c])+'\t'+str(all_logit[c])+'\n')
-            c+=1
-        o2.close()
         '''
         shap_file_map = {
             'snv': resolve_shap_file('strains_test_sentence_fs_shap.txt', 'strains_train_sentence_fs_shap.txt'),
@@ -895,44 +1065,28 @@ def main():
             shap_file_map[key] = chosen
 
         relevant_shap = {label: shap_file_map.get(label, "") for label in feature_labels}
-        if any(os.path.exists(path) for path in relevant_shap.values() if path):
-            feature_tensors = []
-            if fnum >= 1:
-                feature_tensors.append(torch.from_numpy(x_val1))
-            if fnum >= 2:
-                feature_tensors.append(torch.from_numpy(x_val2))
-            if fnum == 3:
-                feature_tensors.append(torch.from_numpy(x_val3))
-
-            annotation_file_map = {
-                'snv': [os.path.join(train_dir, 'feature_remain_graph.txt')],
-                'pc': [os.path.join(train_dir, 'feature_remain_pc.txt')],
-                'kmer': [os.path.join(train_dir, 'kmer_token_id.txt')],
-            }
-            relevant_annotations = {
-                label: annotation_file_map.get(label, []) for label in feature_labels
-            }
-            try:
-                export_token_contributions(
-                    model,
-                    feature_tensors,
-                    feature_labels,
-                    relevant_shap,
-                    analysis_dir,
-                    encoder_names,
-                    device=device,
-                    batch_size=batch_size,
-                    top_k_pairs=20,
-                    subset_sizes=(2, 3),
-                    subset_sample_size=32,
-                    sample_ids=sid_val,
-                    annotation_file_map=relevant_annotations,
-                )
-                print('Saved interpretability summaries for test predictions.', flush=True)
-            except Exception as exc:
-                print(f'Failed to export interpretability summaries: {exc}', flush=True)
-        else:
-            print('No SHAP reference files found. Skipping interpretability export.', flush=True)
+        # Attribution on the Transformer itself (library/interpret_pipeline.py).
+        # Global rankings use the training genomes of the database; local
+        # explanations and the deletion test use the genomes being predicted.
+        train_list = [x_train1, x_train2, x_train3][:fnum]
+        eval_list = [x_val1, x_val2, x_val3][:fnum]
+        shap_default, annot_default = IP.find_default_files(train_dir, feature_labels)
+        for label in feature_labels:
+            if relevant_shap.get(label) and 'strains_train' in os.path.basename(relevant_shap[label]):
+                shap_default[label] = relevant_shap[label]
+        opts = IP.InterpretOptions(
+            method=args.attr_method, steps=args.attr_steps, batch_size=max(1, min(batch_size, 8)),
+            max_train=args.attr_max_train, faithfulness=bool(test_labels_available),
+            shap_files=shap_default, annotation_files=annot_default,
+        )
+        try:
+            IP.run(model, encoder_names, feature_labels, train_list, y_train, sid_train,
+                   os.path.join(analysis_dir, 'transformer_attribution'), opts,
+                   eval_arrays=eval_list, y_eval=np.asarray(y_val), ids_eval=sid_val,
+                   device=device, indir=train_dir)
+            print('Saved Transformer attribution results for test predictions.', flush=True)
+        except Exception as exc:
+            print(f'Failed to export Transformer attribution: {exc}', flush=True)
 
 
 

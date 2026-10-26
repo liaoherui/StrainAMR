@@ -1,0 +1,36 @@
+# Fallback: the Python side only, without the bioinformatics tools.
+#
+# Use this when `environment.yml` is slow or unsolvable on your machine -- usually because of `rgi`,
+# whose dependency tree (blast, diamond, kma, bowtie2, samtools ...) is what the solver struggles
+# with. Create this environment first, so training and the k-mer step work immediately, then add the
+# external tools one at a time and let the solver deal with a much smaller problem each time:
+#
+#     conda env create -f environment-notools.yml
+#     conda activate strainamr
+#     pip install -e .
+#
+#     conda install -c conda-forge -c bioconda mash mmseqs2 minimap2      # fast, few dependencies
+#     conda install -c conda-forge -c bioconda seqwish graphaligner cd-hit
+#     conda install -c conda-forge -c bioconda rgi                        # the slow one, last
+#
+# Installing rgi into its own environment is also fine: StrainAMR only ever calls `rgi` as a command,
+# so it just has to be on PATH.
+name: strainamr
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - pyrodigal>=3.0
+  - pytorch
+  - numpy
+  - scipy
+  - pandas
+  - scikit-learn
+  - statsmodels
+  - biopython
+  - matplotlib
+  - seaborn
+  - shap
+  - tqdm
+  - pip
