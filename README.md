@@ -7,11 +7,17 @@ tokens and selected k-mers — and scored by a multimodal Transformer. A rule la
 AMRFinderPlus / CARD determinants can be combined with the model output, so every prediction
 comes with the evidence behind it.
 
-This branch adds, on top of the original pipeline:
+Beyond prediction, StrainAMR identifies the AMR-related genomic features behind a call: which
+SNV, protein-cluster and k-mer tokens drive an individual genome's probability, which features
+are shared across resistant genomes, and which variant pairs act together. The same reports are
+produced by `strainamr interpret` on an existing checkpoint, without retraining.
+
+What is included:
 
 - a single `strainamr` entry point for every step
 - a known-mechanism layer calibrated on the training genomes (`mechanism_layer.py`)
 - attribution outputs: token attribution, deletion faithfulness, pair interactions, SHAP
+- a position-specific SNV encoder for *M. tuberculosis* (Scheme A, see `docs/mtb-schemea.md`)
 - a position-specific SNV encoder for *M. tuberculosis* (Scheme A, see `docs/mtb-schemea.md`)
 
 ## Install
