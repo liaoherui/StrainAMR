@@ -18,7 +18,6 @@ What is included:
 - a known-mechanism layer calibrated on the training genomes (`mechanism_layer.py`)
 - attribution outputs: token attribution, deletion faithfulness, pair interactions, SHAP
 - a position-specific SNV encoder for *M. tuberculosis* (Scheme A, see `docs/mtb-schemea.md`)
-- a position-specific SNV encoder for *M. tuberculosis* (Scheme A, see `docs/mtb-schemea.md`)
 
 ## Install
 
