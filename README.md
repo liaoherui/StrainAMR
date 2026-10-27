@@ -19,6 +19,7 @@ This branch adds, on top of the original pipeline:
     conda env create -f environment.yml
     conda activate strainamr
     pip install -e .
+    unzip -q localDB.zip        # CARD database used by RGI --local
 
 The pipeline also calls tools that pip cannot install: `prodigal`, `rgi` (CARD), `mmseqs`
 (or `cd-hit`), `minimap2`, `seqwish`, `mash`, and for the mechanism layer `amrfinder`
