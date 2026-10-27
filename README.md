@@ -23,12 +23,28 @@ What is included:
 
     conda env create -f environment.yml
     conda activate strainamr
+    pip install -r requirements.txt
     pip install -e .
-    unzip -q localDB.zip        # CARD database used by RGI --local
+
+Two data assets have to be downloaded before the first run:
+
+    unzip -q localDB.zip      # CARD database used by `rgi --local`
+    amrfinder -u              # AMRFinderPlus database, about 230 MB
 
 The pipeline also calls tools that pip cannot install: `prodigal`, `rgi` (CARD), `mmseqs`
-(or `cd-hit`), `minimap2`, `seqwish`, `mash`, and for the mechanism layer `amrfinder`
-(`conda install -c bioconda ncbi-amrfinderplus && amrfinder -u`).
+(or `cd-hit`), `minimap2`, `seqwish`, `mash`, and for the mechanism layer `amrfinder`.
+
+If `conda env create` cannot solve -- bioconda still ships old builds of `rgi` and
+`graphaligner` whose dependencies no longer resolve together -- install the exact package set
+this release was validated with instead:
+
+    conda create -n strainamr --file docs/environment-explicit.txt
+    conda activate strainamr
+    pip install -r requirements.txt
+    pip install -e .
+
+`docs/environment-explicit.txt` pins every package to a version and build that were tested end
+to end on `Test_genomes.zip`.
 
 ## Quick start
 

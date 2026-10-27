@@ -25,3 +25,4 @@ Test_genomes/
 Test_run/
 Model_test/
 localDB/
+*.egg-info/
