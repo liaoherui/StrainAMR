@@ -42,6 +42,19 @@ The pipeline also calls tools that pip cannot install: `prodigal`, `rgi` (CARD),
 `strainamr --help` lists all subcommands; `strainamr <subcommand> --help` lists that step's
 options. The original standalone scripts still work unchanged.
 
+## Demo
+
+`Test_genomes.zip` holds a small *S. aureus* / levofloxacin set: 61 genomes, 50 of which
+carry a label and are used. The five validation genomes only show that the pipeline runs
+end to end, not how well it performs.
+
+    bash test_run.sh
+
+It unpacks the CARD database and the demo genomes, then runs
+build-train -> build-test -> train -> predict into `Test_run/` and `Model_test/`.
+Steps that already finished are skipped, so re-running is cheap. One GPU is used by
+default; override with `CUDA_VISIBLE_DEVICES`.
+
 ## Prediction modes
 
 `strainamr predict --mode` selects how the final call is made.

@@ -21,6 +21,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$HERE"
 
 THREADS=${THREADS:-8}
+# Multi-GPU training goes through NCCL, which fails on shared or mixed-driver hosts.
+# Restrict the demo to one card unless the caller says otherwise.
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 DRUG=levofloxacin
 ORGANISM=Staphylococcus_aureus
 DATA=Test_genomes/Sau
@@ -32,7 +35,7 @@ PRED=Test_run/predictions
 step() { printf '\n=== %s ===\n' "$*"; }
 
 if [ -f strainamr.py ]; then
-  run() { python strainamr.py "$@"; }
+  run() { python -u strainamr.py "$@"; }
 elif command -v strainamr >/dev/null 2>&1; then
   run() { strainamr "$@"; }
 else
@@ -45,7 +48,15 @@ if [ ! -d "$DATA" ]; then
   unzip -q Test_genomes.zip
 fi
 
-step "build-train ($(find "$DATA/Ref_train" -name '*.fna' | wc -l) genomes)"
+if [ ! -f localDB/card.json ]; then
+  step "unzip localDB.zip (CARD database used by RGI --local)"
+  unzip -q localDB.zip
+fi
+
+if [ -f "$DB/node_token_match.txt" ]; then
+  step "build-train: already done ($DB)"
+else
+step "build-train ($(find "$DATA/Ref_train" -name '*.fna' | wc -l) genomes, $(wc -l < "$DATA/sau_label_train.txt") labelled)"
 run build-train \
   -i "$DATA/Ref_train" \
   -l "$DATA/sau_label_train.txt" \
@@ -53,7 +64,11 @@ run build-train \
   -o "$DB" \
   -t "$THREADS" \
   --amr-organism "$ORGANISM"
+fi
 
+if [ -f "$VAL/strains_test_sentence_fs.txt" ]; then
+  step "build-test: already done ($VAL)"
+else
 step "build-test ($(find "$DATA/Ref_val" -name '*.fna' | wc -l) genomes)"
 run build-test \
   -i "$DATA/Ref_val" \
@@ -62,13 +77,18 @@ run build-test \
   -o "$VAL" \
   --db "$DB" \
   -t "$THREADS"
+fi
 
+if [ -f "$MODEL/models/best_model_f1_score.pt" ]; then
+  step "train: already done ($MODEL)"
+else
 step "train"
 run train \
   -i "$DB" \
   --val-dir "$VAL" \
   -o "$MODEL" \
   -s 1 --patience 20 --epochs 100
+fi
 
 step "predict"
 run predict \
