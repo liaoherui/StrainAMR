@@ -26,7 +26,8 @@ What is included:
     pip install -r requirements.txt
     pip install -e .
 
-Two data assets have to be downloaded before the first run:
+Two data assets have to be prepared before the first run: one is unpacked from this
+repository, the other is downloaded.
 
     unzip -q localDB.zip      # CARD database used by `rgi --local`
     amrfinder -u              # AMRFinderPlus database, about 230 MB
@@ -62,6 +63,9 @@ options. The original standalone scripts still work unchanged.
 `Test_genomes.zip` holds a small *S. aureus* / levofloxacin set: 61 genomes, 50 of which
 carry a label and are used. The five validation genomes only show that the pipeline runs
 end to end, not how well it performs.
+
+The two data steps in Install are required first: `unzip -q localDB.zip` and `amrfinder -u`.
+The demo runs the known-mechanism layer, which needs the AMRFinderPlus database.
 
     bash test_run.sh
 
@@ -122,6 +126,8 @@ only 25 of 766 genomes are resistant.
     mechanism_layer.py      known-mechanism rule layer and its calibration
     library/                Transformer, pooled head, attribution and SHAP helpers
     scripts/                three-fold pipeline, Scheme A, threshold evaluation
+    test_run.sh             end-to-end demo on the genomes in Test_genomes.zip
+    requirements.txt        pip dependencies that conda does not provide
     docs/                   method notes
     models/manifest.tsv     index of released checkpoints
 
