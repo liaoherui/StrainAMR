@@ -21,3 +21,6 @@ models-*/
 runs-*/
 logs/
 seqwish-*/
+Test_genomes/
+Test_run/
+Model_test/
