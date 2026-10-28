@@ -14,8 +14,58 @@ from generate_token_from_ps import generate_tps
 from generate_token_from_ps_predict import generate_tpsp
 from feature_selection_sp_test import sef_test
 from cal_length_test_fs import scan_length_fs,scan_length_fs_shap
+from steplog import log, step, summary
+import pc_clusters as PC
 from sample_ids import index_genomes, sample_id_from_filename, validate_label_genomes
 script_dir = os.path.dirname(os.path.abspath(__file__))
+
+def inherit_build_settings(params, gene_caller=None, rgi_extra=None, mechanism=None, amrfinder_db=None,
+                           check=True):
+    """Resolve the annotation settings for build-test from the training database's build_params.
+
+    Gene calling, RGI options and the known-mechanism layer must match the database, otherwise the
+    same gene is called or annotated differently on the two sides.  None means "take the database's
+    value"; an explicit value that differs is honoured but warned about.
+    Returns (gene_caller, rgi_extra, mechanism, amrfinder_db, mechanism_settings).
+    """
+    import mechanism_layer as ML
+    params = params or {}
+    resolved = {}
+    for name, val, default in (('gene_caller', gene_caller, 'pyrodigal'), ('rgi_extra', rgi_extra, '')):
+        train_val = params.get(name)
+        if val is None:
+            val = train_val if train_val is not None else default
+            if train_val is not None:
+                log(f"using {name.replace('_', '-')} '{val}' from the training database")
+            elif params:
+                log(f"WARNING: the training database does not record {name.replace('_', '-')}; "
+                    f"assuming '{val}'")
+        elif train_val is not None and val != train_val:
+            log(f"WARNING: --{name.replace('_', '-')} '{val}' differs from the '{train_val}' the "
+                f"training database was built with; the same gene may be annotated differently")
+        resolved[name] = val
+    mech = dict(params.get('mechanism') or {})
+    if mechanism is None:
+        mechanism = bool(mech.get('enabled'))
+    elif mechanism and not mech.get('enabled'):
+        log('WARNING: the training database has no known-mechanism layer; skipping it here too')
+        mechanism = False
+    if mechanism:
+        amrfinder_db = amrfinder_db or mech.get('amrfinder_db')
+        if check:
+            problems = ML.check_amrfinder(mech.get('organism'), db=amrfinder_db)
+            if problems:
+                raise SystemExit('\n'.join(['The training database uses the known-mechanism layer, '
+                                            'but AMRFinderPlus cannot run here:'] + problems
+                                           + ['  (or pass --no-mechanism for model-only predictions)']))
+            _sw, dbv = ML.amrfinder_versions(db=amrfinder_db)
+            if mech.get('database_version') and dbv != mech.get('database_version'):
+                log(f"WARNING: AMRFinderPlus database {dbv} differs from the "
+                    f"{mech['database_version']} the training database was calibrated with; "
+                    f"determinant names can change between releases. Use the same database "
+                    f"(--amrfinder-db) for comparable results.")
+    return resolved['gene_caller'], resolved['rgi_extra'], mechanism, amrfinder_db, mech
+
 
 def build_dir(idir):
     if not os.path.exists(idir):
@@ -23,19 +73,37 @@ def build_dir(idir):
 
 
 def _prodigal_rgi_worker(args):
-    s, dr, gdir, ginfo, pdir, rgi = args
+    s, dr, gdir, ginfo, pdir, rgi, rgi_threads, gene_caller, rgi_extra = args
     proc = multiprocessing.current_process()
-    print(f"[Prodigal/RGI] start {s} -- {proc.name}", flush=True)
+    log(f"[Prodigal/RGI] start {s} -- {proc.name}", flush=True)
     if os.path.exists(rgi + '/' + s + '.txt') and os.path.getsize(rgi + '/' + s + '.txt') != 0:
-        print(f"[Prodigal/RGI] skip {s} -- {proc.name}", flush=True)
-        return
+        log(f"[Prodigal/RGI] skip {s} -- {proc.name}", flush=True)
+        return s, 0
     if not os.path.exists(pdir + '/' + s + '.faa') or os.path.getsize(pdir + '/' + s + '.faa') == 0:
-        os.system('prodigal -i ' + dr[s] + ' -o ' + ginfo + '/' + s + '.genes -d ' + gdir + '/' + s + '.fa -a ' + pdir + '/' + s + '.faa')
-    os.system('rgi main --input_sequence ' + gdir + '/' + s + '.fa --output_file ' + rgi + '/' + s + ' --local --clean  -n 10')
-    print(f"[Prodigal/RGI] done {s} -- {proc.name}", flush=True)
+        if gene_caller == 'pyrodigal':
+            from StrainAMR_build_train import call_genes_pyrodigal
+            try:
+                call_genes_pyrodigal(dr[s], gdir + '/' + s + '.fa', pdir + '/' + s + '.faa',
+                                     ginfo + '/' + s + '.genes')
+            except Exception as exc:                       # noqa: BLE001 - reported per genome below
+                log(f"[Prodigal/RGI] pyrodigal failed on {s}: {exc}", flush=True)
+                return s, 1
+        else:
+            rc = os.system('prodigal -i ' + dr[s] + ' -o ' + ginfo + '/' + s + '.genes -d ' + gdir + '/'
+                           + s + '.fa -a ' + pdir + '/' + s + '.faa')
+            if rc != 0:
+                return s, rc
+    if rgi_threads:                      # 0 means RGI runs later, batched over all genomes at once
+        rc = os.system('rgi main --input_sequence ' + gdir + '/' + s + '.fa --output_file ' + rgi + '/'
+                       + s + ' --local --clean  -n ' + str(rgi_threads)
+                       + (' ' + rgi_extra if rgi_extra else ''))
+    else:
+        rc = 0
+    log(f"[Prodigal/RGI] done {s} -- {proc.name}", flush=True)
+    return s, rc
 
 
-def run_prodigal_rgi(dr, odir, threads=1):
+def run_prodigal_rgi(dr, odir, threads=1, gene_caller='pyrodigal', rgi_batch=0, rgi_extra=''):
     gdir=odir+'/Genes_ts'
     ginfo=odir+'/Genes_info_ts'
     pdir=odir+'/Proteins_ts'
@@ -46,12 +114,29 @@ def run_prodigal_rgi(dr, odir, threads=1):
     build_dir(pdir)
     build_dir(rgi)
 
-    params = [(s, dr, gdir, ginfo, pdir, rgi) for s in dr]
-    pool = multiprocessing.Pool(processes=int(threads))
-    for p in params:
-        pool.apply_async(_prodigal_rgi_worker, (p,))
+    # spend one thread budget instead of (processes x hard-coded 10) threads, and surface failures:
+    # apply_async without collecting results let a crashed genome pass silently.
+    threads=max(1,int(threads))
+    workers=min(threads,max(1,len(dr)))
+    batched = rgi_batch != 1
+    rgi_threads=0 if batched else max(1,threads//workers)
+    log(f"[Prodigal/RGI] {len(dr)} genomes, {workers} parallel processes"
+          + ("; RGI runs afterwards over all of them at once" if batched
+             else f" x {rgi_threads} RGI threads"),flush=True)
+    params = [(s, dr, gdir, ginfo, pdir, rgi, rgi_threads, gene_caller, rgi_extra) for s in dr]
+    pool = multiprocessing.Pool(processes=workers)
+    failed=[s for s,rc in pool.map(_prodigal_rgi_worker, params) if rc]
     pool.close()
     pool.join()
+    if failed:
+        raise RuntimeError('prodigal/RGI failed for %d genome(s): %s%s'
+                           %(len(failed),', '.join(failed[:10]),' ...' if len(failed)>10 else ''))
+    if batched:
+        import rgi_batch as RB
+        from StrainAMR_build_train import rgi_batch_size
+        gene_files={s: gdir+'/'+s+'.fa' for s in dr if os.path.exists(gdir+'/'+s+'.fa')}
+        RB.run_rgi(gene_files, rgi, threads, per_batch=rgi_batch_size(rgi_batch, len(gene_files)),
+                   extra=rgi_extra)
     return gdir,pdir
 
 def copy_genome(gdir,odir,t):
@@ -115,7 +200,6 @@ def output_pc_token_file(d,pdir,label2,ofile):
         if pre not in dr:
             dr[pre]=[]
         f=open(pdir+'/'+filename,'r')
-        contigs=[]
         dc={} # contigs -> token list
         while True:
             line=f.readline().strip()
@@ -126,19 +210,16 @@ def output_pc_token_file(d,pdir,label2,ofile):
             if pid not in d:continue
             ct=re.split('_',pid)
             ct='_'.join(ct[:-1])
-            if ct not in contigs:
-                contigs.append(ct)
-            if ct not in dc:
+            if ct not in dc:          # dc preserves insertion order, so a separate contig list is redundant
                 dc[ct]=[]
             dc[ct].append(d[pid])
         '''
         if pre=='573_46831':
-            print(contigs)
             print(dc)
             exit()
         '''
         tem=[] # all contig tokens
-        for c in contigs:
+        for c in dc:
             tem.append(','.join(dc[c]))
         dr[pre]=',0,'.join(tem)
         #print(dr)
@@ -160,56 +241,58 @@ def output_pc_token_file(d,pdir,label2,ofile):
     
 
 def generate_tokens_from_cdhit(train_cluster_file,work_dir,label2):
-    f=open(train_cluster_file,'r')
-    #o=open(work_dir+'/pc_matches.txt','w+')
-    dcls={} # Cls_ID -> proteins
-    arr=[]
-    while True:
-        line=f.readline().strip()
-        if not line:break
-        if re.search('Cluster',line):
-            cls=re.sub('>','',line)
-            cls=re.sub(' ','_',cls)
-            if cls not in arr:
-                arr.append(cls)
-            if cls not in dcls:
-                dcls[cls]={}
-        else:
-            pre=line.split()[2]
-            pre=re.sub('>','',pre)
-            pre=re.sub('\.\.\.','',pre)
-            dcls[cls][pre]=''
-    d={} # proteins -> token_ID | without single cluster
-    i=1
-    for c in arr:
-        if len(dcls[c])==1:continue
-        for p in dcls[c]:
-            d[p]=str(i)
-            #o.write(str(i)+'\t'+p+'\n')
-        i+=1
-    f2=open(work_dir+'/merge_test_cdhit.clstr','r')
-    d2={}  # For val samples: proteins -> token_ID | without single cluster
-    while True:
-        line=f2.readline().strip()
-        if not line:break
-        if re.search('Cluster',line):continue
-        pre=line.split()[2]
-        pre=re.sub('>','',pre)
-        pre=re.sub('\.\.\.','',pre)
-        if line[-1]=='*':
-            if pre in d:
-                tid=d[pre]
-            else:
-                tid='NA'
-        else:
-            if not tid=='NA':
+    # Same protein -> token mapping the training run produced, from the same code (pc_clusters).
+    # This used to be a second copy of the parser here, and it lacked the duplicate-protein step:
+    # a cluster whose members were all identical sequences counted as a singleton on this side only,
+    # was dropped, and every token id after it was shifted by one.  The validation PC tokens then
+    # named different clusters than the training vocabulary the model had learned.
+    d=PC.cluster_tokens(train_cluster_file)
+    log('[PC] '+PC.summarise(train_cluster_file),flush=True)
+    if not d:
+        raise RuntimeError('no PC tokens from '+train_cluster_file+': the training database looks '
+                           'incomplete')
+    # Guard against the two sides numbering the clusters differently, which is silent and ruins every
+    # PC token: build-train recorded how many tokens this database defines.
+    n_here=len(set(d.values()))
+    _bp=os.path.join(os.path.dirname(os.path.abspath(train_cluster_file)),'build_params.json')
+    if os.path.exists(_bp):
+        import json as _json
+        try:
+            n_train=_json.load(open(_bp)).get('pc_tokens')
+        except (ValueError,OSError):
+            n_train=None
+        if n_train is not None and n_train!=n_here:
+            raise RuntimeError(
+                'PC token vocabulary mismatch: the training database defines %d PC tokens but reading '
+                '%s here gives %d. The token ids would name different protein clusters than the model '
+                'was trained on. Rebuild the database with this version of StrainAMR.'
+                %(n_train,train_cluster_file,n_here))
+
+    # cd-hit-2d lists the matched TRAINING representative first, marked '*', then the test proteins
+    # that joined it; each of those inherits the representative's token.
+    d2={}
+    tid='NA'
+    unmapped=0
+    with open(work_dir+'/merge_test_cdhit.clstr') as f2:
+        for line in f2:
+            line=line.rstrip('\n')
+            if not line.strip() or re.search('Cluster',line):
+                continue
+            pre=re.sub(r'\.\.\.','',re.sub('>','',line.split()[2]))
+            if line.rstrip().endswith('*'):
+                tid=d.get(pre,'NA')
+                if tid=='NA':
+                    unmapped+=1
+            elif tid!='NA':
                 d2[pre]=tid
+    log(f'[PC] {len(d2)} test proteins mapped to training clusters '
+        f'({unmapped} clusters had no token)',flush=True)
 
     #output_pc_token_file(d,work_dir+'/proteins_train',label,work_dir+'/strains_train_pc_token.txt',train)
     output_pc_token_file(d2,work_dir+'/proteins_test',label2,work_dir+'/strains_test_pc_token.txt')
     
 
-def run_ps(intest,label,label2,drug,work_dir,train_dir):
+def run_ps(intest,label,label2,drug,work_dir,train_dir,kmer_tool='builtin',threads=1):
     #o=open('tem.pheno','w+') 
     #o.write('ID\tAddress\t'+drug+'\n')
     #dtrain={} # Pre -> Genome dir
@@ -259,14 +342,35 @@ def run_ps(intest,label,label2,drug,work_dir,train_dir):
     #os.system(script_dir+'/PhenotypeSeeker/phenotypeseeker modeling tem.pheno')
     build_dir(work_dir+'/PS_out')
 
+    token_id_path = os.path.join(train_dir, 'kmer_token_id.txt')
+    if not os.path.exists(token_id_path):
+        raise FileNotFoundError(f"k-mer token id file not found: {token_id_path}")
+
+    if kmer_tool=='builtin':
+        # Look the training k-mers up directly in the test genomes. PhenotypeSeeker's `prediction`
+        # only ever served to produce K-mer_lists/ for exactly this lookup, and it additionally
+        # required a logistic-regression model file whose predictions StrainAMR discards.
+        import kmer_select as KS
+        kmers=[];tokens=[]
+        for line in open(token_id_path):
+            f=line.rstrip('\n').split('\t')
+            if len(f)>=2:
+                kmers.append(f[0]);tokens.append(f[1])
+        samples=[(pre,dval[pre],0,1.0) for pre in arr_val if pre in dval]
+        missing=[pre for pre in arr_val if pre not in dval]
+        if missing:
+            raise FileNotFoundError('no genome file for: '+', '.join(missing[:5])
+                                    +(' ...' if len(missing)>5 else ''))
+        log(f'[k-mer] looking up {len(kmers)} training k-mers in {len(samples)} test genomes',flush=True)
+        KS.write_token_file(samples,kmers,len(kmers[0]) if kmers else 13,tokens,dl,
+                            work_dir+'/strains_test_kmer_token.txt',threads=threads)
+        log('[k-mer] wrote '+work_dir+'/strains_test_kmer_token.txt',flush=True)
+        return
+
     train_ps_dir = os.path.join(train_dir, 'PS_out')
     model_path = os.path.join(train_ps_dir, f'log_reg_model_{drug}.pkl')
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"PhenotypeSeeker model not found: {model_path}")
-
-    token_id_path = os.path.join(train_dir, 'kmer_token_id.txt')
-    if not os.path.exists(token_id_path):
-        raise FileNotFoundError(f"k-mer token id file not found: {token_id_path}")
 
     o2=open('ps_inf1.txt','w+')
     o3=open('ps_inf2.txt','w+')
@@ -334,7 +438,11 @@ def scan_length(test_dir,train_dir):
 
 
 #def run(ingenome,label,odir,drug,mfile,intest,label2):
-def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=None,sentence_limit=None,train_dir=None):
+def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=None,
+        sentence_limit=None,train_dir=None,kmer_tool='builtin',gene_caller=None,
+        rgi_batch=0,rgi_extra=None,mechanism=None,amrfinder_db=None):
+    # gene_caller / rgi_extra / mechanism default to None = "whatever the training database used":
+    # the two sides must annotate genomes identically, or the same gene gets different tokens.
     work_dir = os.path.abspath(odir)
     build_dir(work_dir)
     train_dir = os.path.abspath(train_dir if train_dir else work_dir)
@@ -344,7 +452,9 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=
         label2 = os.path.abspath(label2)
         if not os.path.exists(label2):
             raise FileNotFoundError(f"Provided label file not found: {label2}")
-        validate_label_genomes(label2, dr)
+        labeled = set(validate_label_genomes(label2, dr))
+        dr = {g: p for g, p in dr.items() if g in labeled}   # skip unlabelled extras
+        val = list(dr)
     label=os.path.join(train_dir,'train_label.txt')
     if not os.path.exists(label):
         raise FileNotFoundError(f"Training label file not found: {label}")
@@ -400,13 +510,66 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=
                 placeholder_fh.write(f"{sid}\t-1\n")
         label2 = placeholder_label
         print(f"No test label file supplied. Created placeholder labels at {label2}.", flush=True)
+    # Inherit the feature/sentence limits the training database was built with, unless overridden:
+    # they set the token-vector widths, and a mismatch between the two sides shows up much later as a
+    # shape error during training or prediction.
+    _p_loaded = {}                      # the training database's build_params.json, if any
+    if train_dir:
+        params_path = os.path.join(train_dir, 'build_params.json')
+        if os.path.exists(params_path):
+            import json as _json
+            with open(params_path) as _fh:
+                _p = _json.load(_fh)
+            _p_loaded = _p
+            for _name, _val in (('feature_limit', feature_limit), ('sentence_limit', sentence_limit)):
+                _train_val = _p.get(_name)
+                if _val is None and _train_val is not None:
+                    if _name == 'feature_limit':
+                        feature_limit = _train_val
+                    else:
+                        sentence_limit = _train_val
+                    log(f"using --{_name.replace('_', '-')} {_train_val} from the training database")
+                elif _val is not None and _train_val is not None and _val != _train_val:
+                    log(f"WARNING: --{_name.replace('_', '-')} {_val} differs from the {_train_val} the "
+                        f"training database was built with; the token widths will not match")
+    gene_caller, rgi_extra, mechanism, amrfinder_db, _mech = inherit_build_settings(
+        _p_loaded, gene_caller, rgi_extra, mechanism, amrfinder_db)
+    import mechanism_layer as ML
+
+    from StrainAMR_build_train import check_tools
+    check_tools(gene_caller, 'cd-hit', kmer_tool, False, snv_c, pc_c, kmer_c)
     # Run prodigal and rgi for all input genomes
     print('Run Prodigal and RGI for all input genomes!',flush=True)
-    gdir,pdir=run_prodigal_rgi(dr,work_dir,threads)
+    log(f"StrainAMR build-test: {len(dr)} genomes, drug '{drug}', {threads} threads -> {work_dir}")
+    with step('gene calling + RGI', f'{len(dr)} genomes'):
+        gdir,pdir=run_prodigal_rgi(dr,work_dir,threads,gene_caller,rgi_batch,rgi_extra)
     gdir=work_dir+'/Genes_ts'
     pdir=work_dir+'/Proteins_ts'
     #exit()
-    filter_rgi(work_dir+'/RGI_raw_ts',drug,mfile,work_dir+'/RGI_ts')
+    with step('filtering RGI hits to the drug class'):
+        filter_rgi(work_dir+'/RGI_raw_ts',drug,mfile,work_dir+'/RGI_ts')
+    if mechanism and os.path.abspath(work_dir) == os.path.abspath(train_dir):
+        log('WARNING: build-test writes into the training database itself (-o equals --db); skipping '
+            'the known-mechanism screening so the database\'s own results are not overwritten. Use a '
+            'separate -o.')
+        mechanism = False
+    if mechanism:
+        try:
+            with step('known mechanisms: saving CARD/RGI hits'):
+                ML.dump_card_hits(work_dir+'/RGI_raw_ts', work_dir, sorted(dr), gene_dir=work_dir+'/Genes_ts')
+        except Exception as exc:                # noqa: BLE001 - CARD is the secondary source
+            log('WARNING: could not save the CARD/RGI hits (%s: %s)' % (type(exc).__name__,
+                str(exc)[:200]), flush=True)
+        try:
+            with step(f"known mechanisms: AMRFinderPlus ({_mech.get('mode', 'protein')}, organism "
+                      f"{_mech.get('organism')})"):
+                ML.screen(work_dir, sorted(dr), _mech.get('organism'), threads, amrfinder_db,
+                          _mech.get('mode', 'protein'), protein_dir=work_dir+'/Proteins_ts',
+                          genome_files=dr)
+        except Exception as exc:                # noqa: BLE001 - reported; features still get built
+            log('WARNING: known-mechanism screening failed: %s: %s'
+                % (type(exc).__name__, str(exc)[:300]), flush=True)
+            log('         predictions for these genomes will be model-only.', flush=True)
     #exit()
     f=open(label,'r')
     line=f.readline()
@@ -487,14 +650,16 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=
             if not os.path.exists(train_cluster_file):
                 raise FileNotFoundError(f"Training CD-HIT cluster file not found: {train_cluster_file}")
 
-            run_cdhit(pval,work_dir,train_merged_proteins)
-            generate_tokens_from_cdhit(train_cluster_file,work_dir,label2)
+            with step('PC tokens: mapping test proteins to the training clusters'):
+                run_cdhit(pval,work_dir,train_merged_proteins)
+                generate_tokens_from_cdhit(train_cluster_file,work_dir,label2)
         
         ############### K-mer tokens ##########
         #print(os.path.abspath(work_dir))
         #exit()
         if not kmer_c==1:
-            run_ps(intest,label,label2,drug,os.path.abspath(work_dir),train_dir)
+            with step(f'k-mer tokens ({kmer_tool})'):
+                run_ps(intest,label,label2,drug,os.path.abspath(work_dir),train_dir,kmer_tool,threads)
         #exit()
         
         #train=x[train_idx]
@@ -535,14 +700,16 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=
         )
 
         #c+=1
-    scan_length(work_dir,train_dir)
-    scan_length_fs(work_dir,train_dir)
-    scan_length_fs_shap(shap_dir,train_shap_dir)
+    with step('token length statistics'):
+        scan_length(work_dir,train_dir)
+        scan_length_fs(work_dir,train_dir)
+        scan_length_fs_shap(shap_dir,train_shap_dir)
+    summary(work_dir, 'build-test step timings')
 
 
 def main():
     usage="StrainAMR_build_test - Takes strain genomes (test sets) as input and extracts graph-based, pc-based, k-mer-based features for antimicrobial resistance prediction."
-    parser=argparse.ArgumentParser(prog="StrainAMR_build_test.py",description=usage)
+    parser=argparse.ArgumentParser(prog=(sys.argv[0] if sys.argv[0].startswith("strainamr") else "StrainAMR_build_test.py"),description=usage)
     parser.add_argument('-i','--input_file',dest='input_file',type=str,help="The directory of the input strain genomes (test set).")
     parser.add_argument('-l','--label_file',dest='lab_file',type=str,help="The directory of the input label file for your test data. If omitted, placeholder labels will be generated automatically.")
     parser.add_argument('-d','--drug',dest='drug_name',type=str,help="The name of the predicted drug. (Note: The drug name of your input test data must match the drug name of your training data.)")
@@ -550,6 +717,27 @@ def main():
     parser.add_argument('-s','--snv',dest='close_snv',type=int,help="If set to 1, then will skip snv tokens generation step. (Default: 0)",default=0)
     parser.add_argument('-k','--kmer',dest='close_kmer',type=int,help="If set to 1, then will skip k-mer tokens generation step. (Default:0)",default=0)
     parser.add_argument('-o','--outdir',dest='outdir',type=str,help="Output directory for generated test features and reports.")
+    parser.add_argument('--rgi-batch',dest='rgi_batch',type=int,default=0,
+                        help="Sequences per RGI run. RGI runs over all genomes at once by default, on "
+                             "each distinct gene sequence only. Pass 1 for the original one-run-per-"
+                             "genome behaviour.")
+    parser.add_argument('--gene-caller',dest='gene_caller',choices=['pyrodigal','prodigal'],
+                        default=None,
+                        help="Gene caller. Default: the one the training database was built with "
+                             "(recorded in build_params.json), else pyrodigal.")
+    parser.add_argument('--rgi-extra',dest='rgi_extra',type=str,default=None,
+                        help="Extra options for `rgi main`. Default: the ones the training database "
+                             "was built with, so both sides annotate genes the same way.")
+    parser.add_argument('--no-mechanism',dest='mechanism',action='store_const',const=False,
+                        default=None,
+                        help="Skip AMRFinderPlus screening even if the training database has the "
+                             "known-mechanism layer (predictions will then be model-only).")
+    parser.add_argument('--amrfinder-db',dest='amrfinder_db',default=None,
+                        help="AMRFinderPlus database directory (default: the training database's).")
+    parser.add_argument('--kmer-tool',dest='kmer_tool',choices=['builtin','phenotypeseeker'],default='builtin',
+                        help="How the training k-mers are looked up in the test genomes. 'builtin' "
+                             "(default) reads them straight from the genomes; 'phenotypeseeker' calls "
+                             "the original tool, which needs its k-mer lists and model file.")
     parser.add_argument('--db',dest='db_dir',type=str,help="Directory containing the pre-built training database (default: use the output directory).")
     parser.add_argument('-t','--threads',dest='threads',type=int,help="Number of parallel processes. (Default:1)",default=1)
     parser.add_argument(
@@ -593,7 +781,10 @@ def main():
     sentence_limit=args.sentence_limit
     if sentence_limit is not None and sentence_limit <= 0:
         sentence_limit=None
-    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile,threads,feature_limit,sentence_limit,train_dir=db_dir)
+    run(infile,lab_file,out,drug,pc_c,snv_c,kmer_c,mfile,threads,feature_limit,sentence_limit,
+        train_dir=db_dir,kmer_tool=args.kmer_tool,gene_caller=args.gene_caller,
+        rgi_batch=args.rgi_batch,rgi_extra=args.rgi_extra,mechanism=args.mechanism,
+        amrfinder_db=args.amrfinder_db)
 
 if __name__=="__main__":
     sys.exit(main())

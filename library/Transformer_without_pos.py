@@ -1,6 +1,11 @@
 import torch
 import torch.nn as nn
 
+try:
+    from library.pooled_head import AttentionPool, flat_mask
+except ImportError:                      # imported as a top-level module
+    from pooled_head import AttentionPool, flat_mask
+
 
 class SelfAttention(nn.Module):
     def __init__(self, embed_size, heads):
@@ -158,6 +163,7 @@ class Transformer(nn.Module):
         dropout=0,
         device="cpu",
         max_length=6500,
+        head='flatten',
     ):
 
         super(Transformer, self).__init__()
@@ -175,7 +181,12 @@ class Transformer(nn.Module):
 
         self.src_pad_idx = src_pad_idx
         self.device = device
-        self.fc1 = nn.Linear(max_length*embed_size, 64)
+        self.head = head
+        if head == 'pooled':
+            self.pool = AttentionPool(1, embed_size)
+            self.fc1 = nn.Linear(1*embed_size, 64)
+        else:
+            self.fc1 = nn.Linear(max_length*embed_size, 64)
         self.out = nn.Linear(64, 1)
         self.bn = nn.BatchNorm1d(64)
 
@@ -188,7 +199,10 @@ class Transformer(nn.Module):
     def forward(self, src):
         src_mask = self.make_src_mask(src)
         enc_src = self.encoder(src, src_mask)
-        enc_src = enc_src.reshape(enc_src.shape[0], -1)
+        if self.head == 'pooled':
+            enc_src = self.pool(enc_src, flat_mask(src_mask), 0)
+        else:
+            enc_src = enc_src.reshape(enc_src.shape[0], -1)
         x = self.bn(self.fc1(enc_src))
         x = self.out(x)
         return x

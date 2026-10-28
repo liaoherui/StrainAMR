@@ -94,6 +94,76 @@ def regenerate(infile,ofile,arrs):
     return td
             
 
+def _additivity_error(explainer, shap_values, clf, X):
+    """max |expected_value + sum(shap) - predict_proba| -- the quantity shap asserts on.
+
+    SHAP for a tree ensemble is exact by construction, so any departure from additivity is numerical
+    error accumulated along the tree paths. It grows explosively with tree depth: on 1000 k-mer
+    features it measures 1e-15 at 50 genomes, 1e-4 at 300 and 9e-2 at 1393, where the paths are
+    hundreds of nodes deep. At 9e-2 the attributions are wrong by nine percentage points of
+    probability and the ranking they produce is meaningless, which is what shap's own check is for.
+    """
+    ev = explainer.expected_value
+    ev = list(ev) if np.ndim(ev) else [ev]
+    if isinstance(shap_values, list):
+        mats = shap_values
+    elif np.ndim(shap_values) == 3:            # newer shap returns (n, features, classes)
+        mats = [shap_values[:, :, i] for i in range(shap_values.shape[2])]
+    else:
+        mats = [shap_values]
+    pred = clf.predict_proba(X)
+    worst = 0.0
+    for i, m in enumerate(mats):
+        if i >= pred.shape[1]:
+            break
+        err = np.abs(ev[min(i, len(ev) - 1)] + m.sum(1) - pred[:, i])
+        worst = max(worst, float(err.max()))
+    return worst
+
+
+def _fit_and_explain(X, y, n_estimators=500, tol=1e-3, ladder=(None, 32, 24, 16, 12, 8)):
+    """Fit the forest and get additive SHAP values, capping tree depth only if it is needed.
+
+    Unlimited depth is what v1 always used and is tried first, so nothing changes on datasets where
+    it is numerically sound. When it is not, the depth is capped until the attributions really are
+    additive -- rather than suppressing the check, which would leave a silently wrong feature
+    ranking. The error actually achieved is always printed.
+
+    The tolerance is in probability units, so 1e-3 is a tenth of a percentage point: far below
+    anything that could reorder features, and far above the 1e-4 that a few hundred genomes produce
+    by ordinary rounding.
+    """
+    last = None
+    for depth in ladder:
+        clf = RandomForestClassifier(random_state=0, n_estimators=n_estimators, max_depth=depth)
+        clf.fit(X, y)
+        explainer = shap.TreeExplainer(clf)
+        try:
+            sv = explainer.shap_values(X, check_additivity=False)
+        except TypeError:                      # a shap old enough to lack the keyword
+            sv = explainer.shap_values(X)
+        err = _additivity_error(explainer, sv, clf, X)
+        if not isinstance(sv, list) and np.ndim(sv) == 3:
+            # the code below indexes shap_values[<class>]; newer shap returns (n, features, classes)
+            sv = [sv[:, :, i] for i in range(sv.shape[2])]
+        label = 'unlimited depth' if depth is None else f'max_depth={depth}'
+        if err <= tol:
+            if depth is not None:
+                print(f'Shap::depth capped at {depth}: attributions are additive to {err:.2e} '
+                      f'(unlimited depth gave {last:.2e}, above the {tol:.0e} tolerance)')
+            else:
+                print(f'Shap::additivity {err:.2e}')
+            return clf, explainer, sv
+        print(f'Shap::{label} gives additivity error {err:.2e}, above the {tol:.0e} tolerance'
+              + ('; retrying with a shallower forest' if depth != ladder[-1] else ''))
+        last = err if last is None else min(last, err)
+    raise RuntimeError(
+        'SHAP attributions are not additive at any tree depth tried %s: the smallest error was '
+        '%.2e, so the feature ranking from them would be meaningless. This is a numerical limit of '
+        'the tree explainer on very deep trees, which arise here because many genomes share an '
+        'identical feature vector.' % (ladder, last))
+
+
 def shap_select(infile, ofile, mapping_files=None, rgi_dir=None):
     """Run SHAP on tokens and write a table with feature names and optional RGI info."""
     based = os.path.dirname(ofile)
@@ -103,9 +173,9 @@ def shap_select(infile, ofile, mapping_files=None, rgi_dir=None):
     rgi_map = utils.load_rgi_annotations(rgi_dir)
     nX=pd.DataFrame(data = X,columns=feas,index=strains)
     #X_test,y_test,w=convert2arr(intest)
-    clf = RandomForestClassifier(random_state=0,n_estimators=500)
-    model=clf.fit(X,y)
-    
+    clf, explainer, shap_values = _fit_and_explain(X, y)
+    model=clf
+
     y_pred=clf.predict_proba(X)
     y_pred_rf = [pred[1] for pred in y_pred]
     #print(y_pred)
@@ -116,9 +186,7 @@ def shap_select(infile, ofile, mapping_files=None, rgi_dir=None):
     print('Shap::Train: ',auc_test)
     #exit()
 
-    explainer = shap.TreeExplainer(model)
-    shap_values=explainer.shap_values(X)
-    shap_obj=explainer(nX)
+    shap_obj=explainer(nX, check_additivity=False)
     shap_obj.values=shap_values[0]
     shap_obj.base_values=shap_obj.base_values[:,0]
     #print(shap_values[0],y_pred_rf)
@@ -339,21 +407,57 @@ def shap_select(infile, ofile, mapping_files=None, rgi_dir=None):
 #shap_select('../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold2/strains_train_kmer_token.txt','../Original_StrainAMR_res_for_shap/Ecoli_3fold/Fold2/strains_train_kmer_token_shap_filter.txt')
 #exit()
 
-def shap_interaction_select(infile, pair_out, top_n=100, map_files=None, rgi_dir=None):
-    """Compute SHAP interaction scores and output top interacting token pairs."""
+def shap_interaction_select(infile, pair_out, top_n=100, map_files=None, rgi_dir=None,
+                            max_features=64):
+    """Compute SHAP interaction scores and output the top interacting token pairs.
+
+    shap_interaction_values returns one (features x features) matrix per sample, so its memory is
+    n_samples * n_features^2 * 8 bytes, doubled because a binary classifier returns one array per
+    class. On the PC channel of a real dataset -- about 300 genomes and 6000 distinct tokens -- that
+    is 86 GB, and the process is killed by the kernel before anything is written. Only the top 100
+    pairs are ever reported, so the whole matrix was never needed: the features are ranked by
+    ordinary SHAP importance first and the interactions computed among the strongest `max_features`
+    of them. At the default 64 that is 10 MB.
+
+    The reduced forest is refitted on those columns, so the numbers are interactions within that
+    subset as seen by a model restricted to it -- close to, but not identical to, the full model's.
+    Raise max_features for a wider search, or set it to 0 to use every feature (only sensible on a
+    channel with a few hundred tokens, and check the printed estimate first).
+    """
     X, y, feats, strains = convert2arr(infile)
+    n_feat = len(feats)
+    keep = np.arange(n_feat)
+    if max_features and n_feat > max_features:
+        # rank by mean |SHAP| from the cheap (non-interaction) explainer, then keep the strongest
+        clf0, ex0, sv0 = _fit_and_explain(X, y)
+        m = sv0[1] if isinstance(sv0, list) and len(sv0) > 1 else sv0[0]
+        keep = np.argsort(np.abs(np.asarray(m)).mean(0))[::-1][:max_features]
+        keep.sort()
+        print(f'Shap::interactions on the {len(keep)} strongest of {n_feat} features '
+              f'({len(strains) * len(keep) ** 2 * 16 / 1e6:.0f} MB; all {n_feat} would need '
+              f'{len(strains) * n_feat ** 2 * 16 / 1e9:.1f} GB)', flush=True)
+    need = len(strains) * len(keep) ** 2 * 16 / 1e9
+    if need > 8:
+        raise MemoryError(
+            'SHAP interaction values for %d genomes x %d features need about %.1f GB, which will be '
+            'killed by the kernel rather than raising. Lower --interaction-features (default 64) or '
+            'set it to -1 to skip the interaction tables entirely.' % (len(strains), len(keep), need))
+    Xk = X[:, keep]
+    featsk = [feats[i] for i in keep]
     clf = RandomForestClassifier(random_state=0, n_estimators=500)
-    model = clf.fit(X, y)
+    model = clf.fit(Xk, y)
     explainer = shap.TreeExplainer(model)
-    interactions = explainer.shap_interaction_values(X)
+    interactions = explainer.shap_interaction_values(Xk)
     if isinstance(interactions, list):
         interactions = interactions[1]
+    elif np.ndim(interactions) == 4:          # newer shap: (n, f, f, classes)
+        interactions = interactions[..., -1]
     inter_mean = np.abs(interactions).mean(0)
-    pairs = []
-    for i in range(len(feats)):
-        for j in range(i + 1, len(feats)):
-            pairs.append((feats[i], feats[j], inter_mean[i, j]))
-    pairs.sort(key=lambda x: x[2], reverse=True)
+    # upper triangle straight out of numpy: the old nested Python loop built one tuple per pair,
+    # which is 18 million objects at 6000 features even when 100 are wanted
+    iu, ju = np.triu_indices(len(featsk), k=1)
+    order = np.argsort(inter_mean[iu, ju])[::-1]
+    pairs = [(featsk[iu[k]], featsk[ju[k]], float(inter_mean[iu[k], ju[k]])) for k in order[:top_n * 4]]
     map_dict = utils.load_token_mappings(map_files)
     rgi_map = utils.load_rgi_annotations(rgi_dir)
     with open(pair_out, 'w+') as o:

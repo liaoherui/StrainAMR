@@ -98,7 +98,6 @@ def output_pc_token_file(d,pdir,label,ofile,idx):
         if pre not in dr:
             dr[pre]=[]
         f=open(pdir+'/'+filename,'r')
-        contigs=[]
         dc={} # contigs -> token list
         while True:
             line=f.readline().strip()
@@ -109,19 +108,16 @@ def output_pc_token_file(d,pdir,label,ofile,idx):
             if pid not in d:continue
             ct=re.split('_',pid)
             ct='_'.join(ct[:-1])
-            if ct not in contigs:
-                contigs.append(ct)
-            if ct not in dc:
+            if ct not in dc:          # dc preserves insertion order, so a separate contig list is redundant
                 dc[ct]=[]
             dc[ct].append(d[pid])
         '''
         if pre=='573_46831':
-            print(contigs)
             print(dc)
             exit()
         '''
         tem=[] # all contig tokens
-        for c in contigs:
+        for c in dc:
             tem.append(','.join(dc[c]))
         dr[pre]=',0,'.join(tem)
         #print(dr)
@@ -146,15 +142,15 @@ def generate_tokens_from_cdhit(work_dir,label,train,val):
     f=open(work_dir+'/merge_train_cdhit.clstr','r')
     o=open(work_dir+'/pc_matches.txt','w+')
     dcls={} # Cls_ID -> proteins
-    arr=[]
     while True:
         line=f.readline().strip()
         if not line:break
         if re.search('Cluster',line):
             cls=re.sub('>','',line)
             cls=re.sub(' ','_',cls)
-            if cls not in arr:
-                arr.append(cls)
+            # This used to also append to a list guarded by "if cls not in arr" -- a linear scan per
+            # cluster, i.e. quadratic in the number of clusters (hundreds of thousands on a real dataset).
+            # dcls already preserves first-seen order, so iterating it below gives the identical order.
             if cls not in dcls:
                 dcls[cls]={}
         else:
@@ -164,7 +160,7 @@ def generate_tokens_from_cdhit(work_dir,label,train,val):
             dcls[cls][pre]=''
     d={} # proteins -> token_ID | without single cluster
     i=1
-    for c in arr:
+    for c in dcls:
         if len(dcls[c])==1:continue
         for p in dcls[c]:
             d[p]=str(i)
@@ -241,6 +237,11 @@ def run_ps(train,val,ingenome,label,drug,work_dir):
     os.system('mv tem_token_id.txt '+work_dir+'/kmer_token_id.txt')
 
 def cal_len(infile1):
+    # A channel whose SHAP step was skipped leaves no file; report width 0 rather than bringing the
+    # whole run down at the very last step, after hours of feature extraction.
+    if not os.path.exists(infile1):
+        print('WARNING: '+infile1+' is missing; recording token width 0 for that channel',flush=True)
+        return 0
     f=open(infile1,'r')
     line=f.readline()
     ms=0

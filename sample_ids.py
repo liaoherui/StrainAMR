@@ -56,21 +56,41 @@ def read_label_ids(label_file):
     return ids
 
 
-def validate_label_genomes(label_file, genomes):
-    """Require a one-to-one match between label IDs and normalized genomes."""
+def _preview(ids, n=8):
+    ids = sorted(ids)
+    return ", ".join(ids[:n]) + (f" ... (+{len(ids) - n} more)" if len(ids) > n else "")
+
+
+def validate_label_genomes(label_file, genomes, require_all_genomes_labeled=False):
+    """Match label IDs to genome files, and say clearly which side is short.
+
+    The two mismatches are not equally serious:
+
+    * a label with no genome file is fatal -- the file is missing or misnamed, and silently
+      training on fewer genomes than the label file describes would hide that;
+    * a genome file with no label is skipped with a warning. Extra assemblies sitting in the input
+      directory are common (the bundled Sau example has 61 genomes for 50 labels), and there is
+      nothing to train on for them anyway.
+
+    Pass require_all_genomes_labeled=True to make the second case fatal as well.
+    """
     label_ids = read_label_ids(label_file)
     label_set = set(label_ids)
     genome_set = set(genomes)
-    missing = sorted(label_set - genome_set)
-    unlabeled = sorted(genome_set - label_set)
-    if missing or unlabeled:
-        details = []
-        if missing:
-            details.append("label IDs without genome files: " + ", ".join(missing))
-        if unlabeled:
-            details.append("genome IDs without labels: " + ", ".join(unlabeled))
+    missing = label_set - genome_set
+    unlabeled = genome_set - label_set
+    if missing:
         raise ValueError(
-            "Genome filenames and label IDs do not match after NCBI accession "
-            "normalization; " + "; ".join(details)
+            f"{len(missing)} label IDs have no genome file (after NCBI accession normalization): "
+            + _preview(missing)
+            + f"\n  {len(genome_set)} genome files found in the input directory."
+            + "\n  Check that the label file's first column matches the genome filenames."
         )
+    if unlabeled:
+        msg = (f"{len(unlabeled)} genome files have no label and will be skipped: "
+               + _preview(unlabeled)
+               + f"\n  ({len(label_set)} of {len(genome_set)} genomes will be used.)")
+        if require_all_genomes_labeled:
+            raise ValueError(msg)
+        print("WARNING: " + msg, flush=True)
     return label_ids

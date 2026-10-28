@@ -1,0 +1,48 @@
+# Drug -> AMRFinderPlus Class/Subclass terms that count as a known mechanism for that drug.
+# A hit is relevant to a drug when any '/'-separated term of its Class or Subclass is listed here.
+# '-' means AMRFinderPlus has no curated knowledge for the drug; the mechanism layer then reports
+# "unavailable" and the model alone decides.  Edit freely: build-train records the terms it used.
+Drug_Name	AMRFinderPlus_terms	Note
+imipenem	CARBAPENEM	carbapenemase activity
+meropenem	CARBAPENEM
+ertapenem	CARBAPENEM
+doripenem	CARBAPENEM
+ceftazidime-avibactam	CARBAPENEM	avibactam inhibits class A/C/some D enzymes; metallo-carbapenemases are the canonical mechanism. Seen-in-training determinants (e.g. KPC) are judged by the training data
+cephalexin	CEPHALOSPORIN,CARBAPENEM,METHICILLIN
+cefdinir	CEPHALOSPORIN,CARBAPENEM,METHICILLIN
+cefazolin	CEPHALOSPORIN,CARBAPENEM,METHICILLIN
+cefoxitin	CEPHALOSPORIN,CARBAPENEM,METHICILLIN
+ceftazidime	CEPHALOSPORIN,CARBAPENEM
+cefotaxime	CEPHALOSPORIN,CARBAPENEM
+ceftriaxone	CEPHALOSPORIN,CARBAPENEM
+cefepime	CEPHALOSPORIN,CARBAPENEM
+penicillin	BETA-LACTAM,CEPHALOSPORIN,CARBAPENEM,METHICILLIN
+ampicillin	BETA-LACTAM,CEPHALOSPORIN,CARBAPENEM,METHICILLIN
+amoxicillin	BETA-LACTAM,CEPHALOSPORIN,CARBAPENEM,METHICILLIN
+amoxicillin-clavulanic	BETA-LACTAM,CEPHALOSPORIN,CARBAPENEM,METHICILLIN	inhibitor combination: seen-in-training determinants are judged by the training data
+piperacillin-tazobactam	BETA-LACTAM,CEPHALOSPORIN,CARBAPENEM	inhibitor combination
+oxacillin	METHICILLIN
+ciprofloxacin	QUINOLONE,FLUOROQUINOLONE,CIPROFLOXACIN
+levofloxacin	QUINOLONE,FLUOROQUINOLONE,LEVOFLOXACIN
+ofloxacin	QUINOLONE,FLUOROQUINOLONE
+moxifloxacin	QUINOLONE,FLUOROQUINOLONE,MOXIFLOXACIN
+erythromycin	MACROLIDE,ERYTHROMYCIN
+azithromycin	MACROLIDE,AZITHROMYCIN,ERYTHROMYCIN
+clarithromycin	MACROLIDE,CLARITHROMYCIN,ERYTHROMYCIN
+clindamycin	LINCOSAMIDE,CLINDAMYCIN
+tetracycline	TETRACYCLINE
+doxycycline	TETRACYCLINE,DOXYCYCLINE
+trimethoprim-sulfamethoxazole	TRIMETHOPRIM,SULFONAMIDE,SULFAMETHOXAZOLE
+nitrofurantoin	NITROFURAN,NITROFURANTOIN
+rifampicin	RIFAMYCIN,RIFAMPIN
+amikacin	AMIKACIN
+gentamicin	GENTAMICIN
+tobramycin	TOBRAMYCIN
+kanamycin	KANAMYCIN
+streptomycin	STREPTOMYCIN
+colistin	COLISTIN
+fosfomycin	FOSFOMYCIN
+vancomycin	VANCOMYCIN,GLYCOPEPTIDE
+linezolid	LINEZOLID,OXAZOLIDINONE
+isoniazid	-	AMRFinderPlus has no curated Mycobacterium tuberculosis mutations
+ethionamide	-	AMRFinderPlus has no curated Mycobacterium tuberculosis mutations

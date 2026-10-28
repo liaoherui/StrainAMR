@@ -64,42 +64,42 @@ def sef(
     mapping_files=None,
     rgi_dir=None,
 ):
+    # Token counts are read straight into a sparse matrix.  The previous version kept the token list in
+    # a Python list and tested membership with "if e not in arr" (a linear scan per token, i.e. quadratic
+    # in the number of distinct tokens) and then materialised a dense strains x tokens list-of-lists,
+    # which for a real dataset is tens of GB of Python ints and is >99% zeros.  Column order, counts and
+    # therefore the chi2 scores are unchanged: the dict preserves first-seen order exactly as the list did.
+    from scipy.sparse import csr_matrix
+
     f=open(infile,'r')
     line=f.readline()
-    d={} # strain -> token_id -> frequency
-    arr=[] # token_id list
-    s=[] # strain_id list
+    col={}   # token_id -> column index, in first-seen order (what arr used to be)
+    s=[]     # strain_id list
     y=[]
+    indptr=[0]
+    indices=[]
+    data=[]
     while True:
         line=f.readline().strip()
         if not line:break
         ele=line.split('\t')
-        d[ele[0]]={}
         y.append(int(ele[1]))
         s.append(ele[0])
-        tk=re.split(',',ele[-1])
-        for e in tk:
-            if e not in d[ele[0]]:
-                d[ele[0]][e]=1
-            else:
-                d[ele[0]][e]+=1
-            if e not in arr:
-                arr.append(e)
-    X=[]
-    for x in s:
-        tem=[]
-        for a in arr:
-            if a not in d[x]:
-                tem.append(0)
-            else:
-                tem.append(d[x][a])
-        X.append(tem)
-    X=np.array(X)
+        counts={}
+        for e in re.split(',',ele[-1]):
+            j=col.get(e)
+            if j is None:
+                j=len(col)
+                col[e]=j
+            counts[j]=counts.get(j,0)+1
+        indices.extend(counts.keys())
+        data.extend(counts.values())
+        indptr.append(len(indices))
+    arr=list(col)                      # token ids in column order
+    X=csr_matrix((np.array(data,dtype=np.int64),np.array(indices,dtype=np.int64),
+                  np.array(indptr,dtype=np.int64)),shape=(len(s),len(col)))
     y=np.array(y)
-    
-    #sel = VarianceThreshold(threshold=(.8 * (1 - .8)))
-    #nX=sel.fit_transform(X)
-    #print(nX.shape)
+
     scores, pvalues = chi2(X, y)
     token_map = utils.load_token_mappings(mapping_files)
     rgi_map = utils.load_rgi_annotations(rgi_dir)
