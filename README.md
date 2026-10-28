@@ -73,40 +73,48 @@ amrfinder -u              # AMRFinderPlus database, about 230 MB
 
 ## Troubleshooting
 
-### `conda env create -f environment.yml` fails with an unsatisfiable error
+<details>
 
-Expected on current bioconda. The old `rgi` build pins `samtools 1.9`, which needs `zlib < 1.3` and
-`ncurses < 5.10`, while conda-forge now ships `libzlib 1.3.x`. Use
-`conda create -n strainamr --file docs/environment-explicit.txt` instead, and add
-`--override-channels -c conda-forge -c bioconda` if a global `.condarc` adds `defaults`.
-
-### `Known-mechanism layer cannot run: amrfinder installed but no database found`
+<summary><strong> Known-mechanism layer cannot run: amrfinder installed but no database found </strong></summary>
 
 The AMRFinderPlus database is downloaded per environment, not shipped with the package. Run
 `amrfinder -u` inside the same environment, or reuse an existing copy by pointing
 `--amrfinder-db` at it.
 
-### `KeyError` or `card.json` not found during `build-train`
+</details>
+
+<details>
+<summary><strong> KeyError or card.json not found during build-train </strong></summary>
 
 `localDB.zip` has not been unpacked. Run `unzip -q localDB.zip` in the repository root, or pass
 `--rgi-extra <path>/localDB` to `rgi main`.
+</details>
 
-### `seqwish` exits with `Illegal instruction`
+<details>
+
+<summary><strong> seqwish exits with Illegal instruction </strong></summary>
 
 The bioconda `seqwish` binary is compiled with AVX2. On older CPUs it crashes and no files appear
 under `<output>/GFA_train_Minimap2/`. Run the job on a newer partition, or pass `-s 1 -p 1` to
 `build-train` to skip the SNV and PC channels when you already have them.
 
-### Training runs on the CPU even though a GPU is present
+</details>
 
-The conda `pytorch` package is a CPU build. On Ampere or newer cards (A6000, A100, RTX 30/40)
+
+<details>
+<summary><strong>  Training runs on the CPU even though a GPU is present </strong></summary>
+
+Possible reason: The conda `pytorch` package is a CPU build. On Ampere or newer cards (A6000, A100, RTX 30/40)
 install the matching CUDA build, e.g. `pip install torch --index-url
 https://download.pytorch.org/whl/cu118`. A warning about `sm_86` in the log means the installed
 build supports only older architectures.
+</details>
 
-### Two or more GPUs are visible and training aborts with `NCCL Error`
+<details>
+<summary><strong>  Two or more GPUs are visible and training aborts with NCCL Error </strong></summary>
 
 Restrict the run to one card with `CUDA_VISIBLE_DEVICES=0` (or whichever is free).
+</details>
 
 ## Inputs
 
