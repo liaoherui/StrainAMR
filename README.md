@@ -36,6 +36,7 @@ conda create -n strainamr --file docs/environment-explicit.txt
 conda activate strainamr
 pip install -r requirements.txt
 pip install -e .
+amrfinder -u  
 ```
 
 `docs/environment-explicit.txt` pins every package to a version, build and hash, so conda installs
