@@ -17,3 +17,4 @@ rapidfuzz==3.9.4
 tenacity==8.5.0
 texttable==1.7.0
 thresholdclustering==1.1
+gdown==5.2.0
