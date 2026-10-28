@@ -333,6 +333,8 @@ once the release is published.
 | *Mycobacterium tuberculosis* | amoxicillin, ciprofloxacin, ethionamide, ofloxacin |
 | *Staphylococcus aureus* | ciprofloxacin, clindamycin, erythromycin, levofloxacin |
 
+All prebuilt databases can be downloaded [here](https://drive.google.com/drive/folders/1g633eWz1TKw5fnZ20k9BJ0MYZoL6zFQ2?usp=sharing).
+
 ## Results
 
 24 species-drug combinations, 6 species, three-fold cross-validation on the BV-BRC benchmark.
