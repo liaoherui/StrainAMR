@@ -276,9 +276,8 @@ def model_root(model_arg):
     """
     if not model_arg:
         return model_arg
-    if os.path.isdir(model_arg):
-        return model_arg
-    d = os.path.dirname(os.path.abspath(model_arg))
+    path = os.path.abspath(model_arg)
+    d = path if os.path.isdir(path) else os.path.dirname(path)
     for cand in (d, os.path.dirname(d)):
         if os.path.exists(os.path.join(cand, 'token_lengths.txt')):
             return cand
