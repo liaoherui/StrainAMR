@@ -332,8 +332,17 @@ Trained weights are not stored in this repository; one checkpoint is 105-770 MB.
 separately, and `models/manifest.tsv` lists the best fold per species-drug combination together
 with its validation AUC, F1, tau, SHA256 checksum and Google Drive file ID.
 
-Download only the species-drug bundle needed for an analysis. Species can be given as its full name
-or as one of `Aba`, `Cdi`, `Ecoli`, `Kcp`, `Mtb` and `Sau`:
+Download only the species-drug bundle needed for an analysis. Give the species as its full name or
+use the corresponding short alias:
+
+| Alias | Species |
+| --- | --- |
+| `Aba` | *Acinetobacter baumannii* |
+| `Cdi` | *Clostridioides difficile* |
+| `Ecoli` | *Escherichia coli* |
+| `Kcp` | *Klebsiella pneumoniae* |
+| `Mtb` | *Mycobacterium tuberculosis* |
+| `Sau` | *Staphylococcus aureus* |
 
 ```bash
 # show the 24 available combinations without downloading anything
