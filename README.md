@@ -2,8 +2,8 @@
 
 StrainAMR is a learning-based framework for predicting antimicrobial resistance (AMR) from
 bacterial genome assemblies while exposing the genetic features that drive a call. Each genome is
-encoded in three channels -- variation-graph SNV tokens, protein-cluster (PC) tokens and selected
-k-mers -- and scored by a multi-modal Transformer. A rule layer built from AMRFinderPlus and CARD
+encoded in three channels: 1. variation-graph SNV tokens, 2. protein-cluster (PC) tokens and 3. selected
+k-mers, and scored by a multi-modal Transformer. A rule layer built from AMRFinderPlus and CARD
 determinants can be combined with the model output, so every prediction comes with the evidence
 behind it.
 
