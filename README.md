@@ -330,19 +330,65 @@ GPU is used by default; override with `CUDA_VISIBLE_DEVICES`.
 
 Trained weights are not stored in this repository; one checkpoint is 105-770 MB. They are published
 separately, and `models/manifest.tsv` lists the best fold per species-drug combination together
-with its validation AUC, F1 and tau. `scripts/download_models.sh` fetches and verifies a selection
-once the release is published.
+with its validation AUC, F1, tau, SHA256 checksum and Google Drive file ID.
+
+Download only the species-drug bundle needed for an analysis. Give the species as its full name or
+use the corresponding short alias:
+
+| Alias | Species |
+| --- | --- |
+| `Aba` | *Acinetobacter baumannii* |
+| `Cdi` | *Clostridioides difficile* |
+| `Ecoli` | *Escherichia coli* |
+| `Kcp` | *Klebsiella pneumoniae* |
+| `Mtb` | *Mycobacterium tuberculosis* |
+| `Sau` | *Staphylococcus aureus* |
+
+```bash
+# show the 24 available combinations without downloading anything
+strainamr download-model --list
+
+# download, verify and extract only the S. aureus / erythromycin bundle
+strainamr download-model -s Sau -d erythromycin -o pretrained_models/
+```
+
+The example writes the verified archive to `pretrained_models/archives/` and extracts the model to
+`pretrained_models/Sau_erythromycin/`. A checksum mismatch stops the command and removes the
+incomplete download. Omitting `-s` or `-d` is an error, so the command never downloads every model
+by accident. Download all 24 bundles only when that is explicitly intended:
+
+```bash
+strainamr download-model --all -o pretrained_models/
+```
+
+Each drug below also links directly to its individual ZIP for browser download.
 
 | Species | Drugs |
 | --- | --- |
-| *Acinetobacter baumannii* | amikacin, ampicillin, avycaz, imipenem |
-| *Clostridioides difficile* | azithromycin, clarithromycin, clindamycin, moxifloxacin |
-| *Escherichia coli* | amoxicillin, ampicillin, ciprofloxacin, levofloxacin |
-| *Klebsiella pneumoniae* | amoxicillin, avycaz, ciprofloxacin, levofloxacin |
-| *Mycobacterium tuberculosis* | amoxicillin, ciprofloxacin, ethionamide, ofloxacin |
-| *Staphylococcus aureus* | ciprofloxacin, clindamycin, erythromycin, levofloxacin |
+| *Acinetobacter baumannii* | [amikacin](https://drive.google.com/file/d/1uBpX39fcR3XLsd78iK6wX1yWA2yp-1Bd/view?usp=sharing), [ampicillin](https://drive.google.com/file/d/1aWajx9PH8uj0iw5B2fn-At1KpBe2ZKwF/view?usp=sharing), [avycaz](https://drive.google.com/file/d/1hhxUJv7s_cKl_oU5kh3LKsTqiyteZ-oL/view?usp=sharing), [imipenem](https://drive.google.com/file/d/1UpkiNLBB_JcBdUgpbH6jImNfe_syD4kz/view?usp=sharing) |
+| *Clostridioides difficile* | [azithromycin](https://drive.google.com/file/d/1t3Zyut7kV9BqTmot3uo7Ls86xz36Tl4l/view?usp=sharing), [clarithromycin](https://drive.google.com/file/d/1y6OWopTe5Ojph1q_h1nHxJRhrBciz3OB/view?usp=sharing), [clindamycin](https://drive.google.com/file/d/1b9dflHt5IlJ10fJfa7gU5WMEt_7qL5Rt/view?usp=sharing), [moxifloxacin](https://drive.google.com/file/d/1WtY27bWw9Ykh0g5gdXxRTNz-QYR_POkT/view?usp=sharing) |
+| *Escherichia coli* | [amoxicillin](https://drive.google.com/file/d/1bX0ap4h9sLjMoxphMhcRlN381eHKjwK0/view?usp=sharing), [ampicillin](https://drive.google.com/file/d/1RcUi6PILzo4AuQWxB89mab7r50w8RFFc/view?usp=sharing), [ciprofloxacin](https://drive.google.com/file/d/17nHo5wGP_5NCgs50Shj0mgsTycDa0aEL/view?usp=sharing), [levofloxacin](https://drive.google.com/file/d/1ptKWlXBRYiBvJzcK9LxdTTycW5F8tgzn/view?usp=sharing) |
+| *Klebsiella pneumoniae* | [amoxicillin](https://drive.google.com/file/d/1Aiys5YQtazteb-nH6bh639TeOuThMnb2/view?usp=sharing), [avycaz](https://drive.google.com/file/d/1jIvcGYVCEvyB36ULknMsSpDFrdF0yZnG/view?usp=sharing), [ciprofloxacin](https://drive.google.com/file/d/1H7EejPH6YCPPjROVgNICDYzkEGXJHTOe/view?usp=sharing), [levofloxacin](https://drive.google.com/file/d/1JY5VW52IcHtirdbFTV2UTdjUAV4sFgFE/view?usp=sharing) |
+| *Mycobacterium tuberculosis* | [amoxicillin](https://drive.google.com/file/d/103EbmrnS83deY8_3HasXbtCvXHY-ipWd/view?usp=sharing), [ciprofloxacin](https://drive.google.com/file/d/1jZRE6t2WPRJv6CR6aeVLJznTk-rUen9-/view?usp=sharing), [ethionamide](https://drive.google.com/file/d/1X3dZ3nsKWYTS-Wetwxs7LVxM_VnqweAm/view?usp=sharing), [ofloxacin](https://drive.google.com/file/d/1NWdF4ePRDudjvsIySbmc3l4tQJR5tXjI/view?usp=sharing) |
+| *Staphylococcus aureus* | [ciprofloxacin](https://drive.google.com/file/d/1zMwlST9UpfMyqXBvw4KDIhGIx5liXX3A/view?usp=sharing), [clindamycin](https://drive.google.com/file/d/1AZLIv3lFFOR60HoaUB8YRDMCD3tsTyhO/view?usp=sharing), [erythromycin](https://drive.google.com/file/d/1mfmtMyo11NrN-NvtlHC117VRSOziB3T7/view?usp=sharing), [levofloxacin](https://drive.google.com/file/d/1Y1MASnuwJdXhP65Wn-hdSYNEdFZ32K9w/view?usp=sharing) |
 
-All prebuilt databases can be downloaded [here](https://drive.google.com/drive/folders/1g633eWz1TKw5fnZ20k9BJ0MYZoL6zFQ2?usp=sharing).
+[Browse or download all prebuilt model bundles in Google Drive](https://drive.google.com/drive/folders/1g633eWz1TKw5fnZ20k9BJ0MYZoL6zFQ2?dmr=1&ec=wgc-drive-%5Bmodule%5D-goto).
+
+To predict new genomes with the downloaded bundle, run from the StrainAMR repository root (where
+`localDB/` was unpacked):
+
+```bash
+MODEL=pretrained_models/Sau_erythromycin
+strainamr build-test -i genomes_test/ -d erythromycin -o "$MODEL/test_features/" \
+    --db "$MODEL/db/" -t 32
+strainamr predict -i "$MODEL/test_features/" -m "$MODEL/" -o "$MODEL/pred/" \
+    --db "$MODEL/db/"
+```
+
+Add `-l labels_test.txt` to `build-test` when phenotype labels are available. Without labels the
+pipeline still predicts every genome, but evaluation metrics are skipped. Use uncompressed FASTA
+inputs (`.fna`, `.fa` or `.fasta`); do not keep a compressed copy of the same genome in the input
+directory.
 
 ## Results
 

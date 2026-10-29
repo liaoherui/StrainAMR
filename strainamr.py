@@ -35,6 +35,8 @@ COMMANDS = {
                 "predict resistance for new genomes with a trained model"),
     "interpret": ("StrainAMR_interpret",
                   "attribution and interaction analysis of a trained model"),
+    "download-model": ("StrainAMR_download_model",
+                       "download one released species-drug model bundle"),
     "check-rgi": ("rgi_batch",
                   "verify that batched RGI reproduces one-run-per-genome RGI on a few genomes"),
     "mechanism-calibrate": ("mechanism_layer",

@@ -276,9 +276,8 @@ def model_root(model_arg):
     """
     if not model_arg:
         return model_arg
-    if os.path.isdir(model_arg):
-        return model_arg
-    d = os.path.dirname(os.path.abspath(model_arg))
+    path = os.path.abspath(model_arg)
+    d = path if os.path.isdir(path) else os.path.dirname(path)
     for cand in (d, os.path.dirname(d)):
         if os.path.exists(os.path.join(cand, 'token_lengths.txt')):
             return cand
@@ -909,6 +908,18 @@ def main():
             else:
                 print('The training database has no known-mechanism layer: model-only predictions.',
                       flush=True)
+                import mechanism_layer as ML
+                _probs = ML.read_probs(os.path.join(logs_dir, 'output_sample_prob_predict.txt'))
+                _out = os.path.join(odir, 'predictions.tsv')
+                with open(_out, 'w') as _fh:
+                    _fh.write('Sample_ID\tLabel\tCall\tBasis\tModel_prob\tModel_call\t'
+                              'Mechanism_call\tDeterminants\tNot_counted\tFlags\n')
+                    for _sid, (_lab, _p) in _probs.items():
+                        _call = 'R' if _p >= 0.5 else 'S'
+                        _lab_s = 'NA' if _lab is None else str(_lab)
+                        _fh.write('%s\t%s\t%s\tmodel\t%.4f\t%s\tnone\t\t\t\n'
+                                  % (_sid, _lab_s, _call, _p, _call))
+                print('wrote ' + _out, flush=True)
         if args.skip_analysis:
             print('--skip-analysis: not running the SHAP reports and Transformer attribution', flush=True)
             return 0

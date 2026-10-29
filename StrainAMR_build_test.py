@@ -532,6 +532,30 @@ def run(intest,label2,odir,drug,pc_c,snv_c,kmer_c,mfile,threads=1,feature_limit=
                 elif _val is not None and _train_val is not None and _val != _train_val:
                     log(f"WARNING: --{_name.replace('_', '-')} {_val} differs from the {_train_val} the "
                         f"training database was built with; the token widths will not match")
+        else:
+            # Release bundles may ship only the calibrated mechanism layer, without the training
+            # database's build_params.json.  Recover the settings that matter (drug, organism,
+            # carrier and PPV thresholds) from mechanism/calibration.json so that new genomes are
+            # annotated exactly like the training genomes.
+            _cal = os.path.join(train_dir, 'mechanism', 'calibration.json')
+            if os.path.exists(_cal):
+                import json as _json
+                with open(_cal) as _fh:
+                    _c = _json.load(_fh)
+                _p_loaded = {
+                    'drug': _c.get('drug'),
+                    'gene_caller': 'pyrodigal',
+                    'rgi_extra': '',
+                    'mechanism': {
+                        'enabled': bool(_c.get('available', True)),
+                        'organism': _c.get('organism'),
+                        'mode': _c.get('mode', 'protein'),
+                        'amrfinder_db': None,
+                        'min_carriers': _c.get('min_carriers', 5),
+                        'min_ppv': _c.get('min_ppv', 0.8),
+                    },
+                }
+                log(f"WARNING: {params_path} is missing; annotation settings rebuilt from {_cal}")
     gene_caller, rgi_extra, mechanism, amrfinder_db, _mech = inherit_build_settings(
         _p_loaded, gene_caller, rgi_extra, mechanism, amrfinder_db)
     import mechanism_layer as ML
