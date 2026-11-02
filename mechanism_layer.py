@@ -1089,10 +1089,10 @@ def write_predictions(db_dir, feat_dir, out_dir, probs=None, tau=None, mode='hyb
         other = '; '.join(sorted({f"{e['Element']}[{e['Status']}]" for e in ev
                                   if e['Counted'] != 'yes' and e.get('Source') != 'CARD'}))
         rows.append({'Sample_ID': g, 'Label': '' if lab is None else lab,
-                     'Call': 'R' if call else 'S', 'Basis': basis,
-                     'Model_prob': '' if p is None else f'{p:.4f}',
                      'Model_call': '' if p is None else ('R' if p >= 0.5 else 'S'),
-                     'Mechanism_call': mcall, 'Determinants': det, 'Not_counted': other,
+                     'Mechanism_call': mcall, 'Hybrid_call': 'R' if call else 'S',
+                     'Basis': basis, 'Model_prob': '' if p is None else f'{p:.4f}',
+                     'Determinants': det, 'Not_counted': other,
                      'Flags': ';'.join(flags)})
         for e in ev:
             t = table.get(det_key(e), {})
