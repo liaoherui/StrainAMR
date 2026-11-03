@@ -289,7 +289,7 @@ are needed, or to explain a different checkpoint.
 | `Label` | Ground truth, `1` resistant / `0` susceptible, or `NA` when unknown |
 | `Model_call` | Call at the fixed 0.5 threshold |
 | `Mechanism_call` | Call from the rule layer alone |
-| `Hybrid_call` | Final call (hybrid by default), `R` or `S`; retains the selected mode's result |
+| `Hybrid_call` | Hybrid call, `R` or `S`; retains the selected mode's result |
 | `Basis` | Which evidence produced `Hybrid_call`: `mechanism+model`, `model`, `mechanism`, or `none` |
 | `Model_prob` | Model probability of resistance |
 | `Determinants` | Counted determinants, e.g. `gyrA_S84L[supported]` |
