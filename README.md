@@ -19,7 +19,6 @@ behind it.
 - [Prediction Modes](#prediction-modes)
 - [Demo](#demo)
 - [Models](#models)
-- [Results](#results)
 - [Repository Layout](#repository-layout)
 - [Citation](#citation)
 - [License](#license)
@@ -407,16 +406,6 @@ pipeline still predicts every genome, but evaluation metrics are skipped. Use un
 inputs (`.fna`, `.fa` or `.fasta`); do not keep a compressed copy of the same genome in the input
 directory.
 
-## Results
-
-24 species-drug combinations, 6 species, three-fold cross-validation on the BV-BRC benchmark.
-Mean F1 over all combinations is 0.917 (0.940 excluding Mtb-amoxicillin); 23 of 24 combinations
-reproduce previously reported F1 within 0.03.
-
-Two caveats when reading `models/manifest.tsv`. The listed F1 comes from the validation fold that
-was used to select that fold, so it is optimistic; report the three-fold mean instead. And
-*M. tuberculosis* amoxicillin remains the weakest combination (F1 0.393 at threshold 0.5) because
-only 25 of 766 genomes are resistant.
 
 ## Repository Layout
 
