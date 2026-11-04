@@ -7,6 +7,23 @@ k-mers, and scored by a multi-modal Transformer. A rule layer built from AMRFind
 determinants can be combined with the model output, so every prediction comes with the evidence
 behind it.
 
+## Overview
+
+- [Key Capabilities](#key-capabilities)
+- [Installation (Linux)](#installation-linux)
+- [Troubleshooting](#troubleshooting)
+- [Inputs](#inputs)
+- [Quick Start](#quick-start)
+- [Command-line Parameters](#command-line-parameters)
+- [Output](#output)
+- [Prediction Modes](#prediction-modes)
+- [Demo](#demo)
+- [Models](#models)
+- [Results](#results)
+- [Repository Layout](#repository-layout)
+- [Citation](#citation)
+- [License](#license)
+
 ## Key Capabilities
 
 - **AMR prediction from FASTA assemblies** -- one command per step, no manual feature engineering
