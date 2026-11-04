@@ -434,7 +434,7 @@ only 25 of 766 genomes are resistant.
 
 If you use StrainAMR in your research, please cite:
 
-> Liao et al. *StrainAMR: ...* (2025)
+> Liao et al. *Accurate and interpretable antimicrobial resistance prediction for bacterial strains using multimodal learning with StrainAMR* (2026)
 
 ## License
 
