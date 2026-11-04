@@ -1,8 +1,4 @@
-# StrainAMR
-
-<p align="center">
-  <img src="strainamr-logo.png" alt="StrainAMR logo" width="240">
-</p>
+#  <img src="strainamr-logo.png" alt="StrainAMR logo" width="150"> StrainAMR
 
 StrainAMR is a learning-based framework for predicting antimicrobial resistance (AMR) from
 bacterial genome assemblies while exposing the genetic features that drive a call. Each genome is
