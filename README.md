@@ -1,5 +1,9 @@
 # StrainAMR
 
+<p align="center">
+  <img src="strainamr-logo.png" alt="StrainAMR logo" width="240">
+</p>
+
 StrainAMR is a learning-based framework for predicting antimicrobial resistance (AMR) from
 bacterial genome assemblies while exposing the genetic features that drive a call. Each genome is
 encoded in three channels: 1. variation-graph SNV tokens, 2. protein-cluster (PC) tokens and 3. selected
